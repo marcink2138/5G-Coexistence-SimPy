@@ -16,11 +16,11 @@ file_log_name = f"{datetime.today().strftime('%Y-%m-%d-%H-%M-%S')}.log"
 
 typ_filename = "RS_coex_1sta_1wifi2.log"
 
-logging.basicConfig(filename=file_log_name,
+logging.basicConfig(filename="",
                     format='%(asctime)s %(message)s',
                     filemode='w')
 logger = logging.getLogger()
-logger.setLevel(logging.DEBUG)  # chose DEBUG to display stats in debug mode :)
+logger.setLevel(logging.CRITICAL)  # chose DEBUG to display stats in debug mode :)
 
 colors = [
     "\033[30m",
@@ -951,12 +951,14 @@ class GnbFBE:
 
     def send_transmission(self):
         global start
+        global flag
         self.channel.tx_list_NR_FBE.append(self)
         with self.channel.tx_lock.request() as req:
             try:
                 log(self, f"Starting transmission")
-                yield req
                 start = self.env.now
+                yield req
+                flag = False
                 if len(self.channel.tx_list_NR_FBE) > 1:
                     for gnbFbe in self.channel.tx_list_NR_FBE:
                         if gnbFbe == self:
@@ -964,19 +966,23 @@ class GnbFBE:
                         if gnbFbe.transmission_process.is_alive:
                             gnbFbe.transmission_process.interrupt()
                             continue
-                    yield self.env.timeout(self.transmission_time)
-                    self.sent_failed()
-                    self.channel.tx_list_NR_FBE.remove(self)
-                    return
+                    flag = True
+                    raise simpy.Interrupt("Collision in channel")
 
                 yield self.env.timeout(self.transmission_time)
+                if len(self.channel.tx_list_NR_FBE) > 1:
+                    self.sent_failed()
+                else:
+                    self.sent_completed()
                 self.channel.tx_list_NR_FBE.remove(self)
-                self.sent_completed()
 
             except simpy.Interrupt:
                 end = self.env.now
                 already_send = end - start
-                yield self.env.timeout(self.transmission_time - already_send)
+                if flag:
+                    yield self.env.timeout(self.transmission_time)
+                else:
+                    yield self.env.timeout(self.transmission_time - already_send)
                 self.channel.tx_list_NR_FBE.remove(self)
                 self.sent_failed()
 
@@ -1029,7 +1035,7 @@ if __name__ == "__main__":
         list_test.append(GnbFBE("GnbFBE {}".format(i), environment, channel, "\033[30m"))
         print('siema')
 
-    environment.run(until=2 * 1000000)
+    environment.run(until=1000000)
     print('Successful transmitions {}'.format(channel.succeeded_transmissions_NR_FBE))
     print('Failed transmitions {}'.format(channel.failed_transmissions_NR_FBE))
     for gnb in list_test:
