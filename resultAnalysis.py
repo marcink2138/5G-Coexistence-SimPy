@@ -1,11 +1,8 @@
-import pandas as pd
-import matplotlib.pyplot as plt
-
-import numpy as np
-import matplotlib as mpl
-from matplotlib import cm
-
 import cycler
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 
 n = 4
 color = mpl.cm.viridis(np.linspace(0.0, 1.0, n))
@@ -14,6 +11,7 @@ color = mpl.cm.viridis(np.linspace(0.0, 1.0, n))
 def viridis(a, b, color_amount):
     color = mpl.cm.viridis(np.linspace(a, b, n))
     mpl.rcParams['axes.prop_cycle'] = cycler.cycler('color', color)
+
 
 def print_collision_prob():
     # read data from csv
@@ -40,6 +38,7 @@ def print_collision_prob():
     plt.tight_layout()
     plt.savefig('results/colisonProbability.png')
 
+
 def print_airtime_34():
     # read data from csv
     viridis(0.0, 1.0, 4)
@@ -58,13 +57,13 @@ def print_airtime_34():
 
     # plotting
     # 5G _ JC
-    ax = data2.plot( marker='o', legend=True, ylim=(0, 1))
-    ax2 = data3.plot( marker='o', legend=True, ylim=(0, 1))
+    ax = data2.plot(marker='o', legend=True, ylim=(0, 1))
+    ax2 = data3.plot(marker='o', legend=True, ylim=(0, 1))
 
-    ax3 = data2dcf.plot( marker='x', legend=True, ylim=(0, 1), linestyle= '--')
-    ax4 = data3dcf.plot( marker='x', legend=True, ylim=(0, 1), linestyle= '--')
+    ax3 = data2dcf.plot(marker='x', legend=True, ylim=(0, 1), linestyle='--')
+    ax4 = data3dcf.plot(marker='x', legend=True, ylim=(0, 1), linestyle='--')
 
-    ax2.legend(['5G-Coex-SimPy occupancy', '5G-Coex-SimPy efficiency', 'DCF-SimPy occupancy', 'DCF-SimPy efficiency' ])
+    ax2.legend(['5G-Coex-SimPy occupancy', '5G-Coex-SimPy efficiency', 'DCF-SimPy occupancy', 'DCF-SimPy efficiency'])
     ax2.set_xlabel('Number of transmitting Wi-Fi stations', fontsize=14)
     ax2.set_ylabel('Normalized airtime', fontsize=14)
 
@@ -93,11 +92,10 @@ def print_channel_occupancy():
     # 5G _ JC
     ax = data2.plot(title='Airtime 5G-Coexistance-Simpy vs DCF-Simpy', marker='o', legend=True, ylim=(0, 1))
 
+    # ax2.legend(['Normalized Channel Occupancy', 'Channel Efficiency'])
 
-    #ax2.legend(['Normalized Channel Occupancy', 'Channel Efficiency'])
-
-    ax3 = data2dcf.plot(title='Airtime 5G-Coexistance-Simpy vs DCF-Simpy', marker='x', legend=True, ylim=(0, 1), linestyle= '--')
-
+    ax3 = data2dcf.plot(title='Airtime 5G-Coexistance-Simpy vs DCF-Simpy', marker='x', legend=True, ylim=(0, 1),
+                        linestyle='--')
 
     ax.set_xlabel('Number of transmitting Wi-Fi stations', fontsize=14)
     ax.set_ylabel('Channel occupancy time', fontsize=14)
@@ -128,10 +126,11 @@ def print_channel_efficency():
     ax2 = data3.plot(title='Airtime 5G-Coexistance-Simpy vs DCF-Simpy', marker='o', legend=True, ylim=(0, 1))
     ax2.set(xlabel="Number of transmitting Wi-Fi stations", ylabel="% of time")
 
-    ax4 = data3dcf.plot(title='Airtime 5G-Coexistance-Simpy vs DCF-Simpy', marker='x', legend=True, ylim=(0, 1), linestyle= '--')
+    ax4 = data3dcf.plot(title='Airtime 5G-Coexistance-Simpy vs DCF-Simpy', marker='x', legend=True, ylim=(0, 1),
+                        linestyle='--')
 
     ax4.set(xlabel="Number of transmitting Wi-Fi stations", ylabel="Normalized airtime")
-    ax2.legend(['5G-Coex-SimPy efficiency','DCF-SimPy efficiency'])
+    ax2.legend(['5G-Coex-SimPy efficiency', 'DCF-SimPy efficiency'])
 
     ax2.set_xlabel('Number of transmitting Wi-Fi stations', fontsize=14)
     ax2.set_ylabel('Channel efficiency time', fontsize=14)
@@ -141,6 +140,7 @@ def print_channel_efficency():
     # Save to file
     plt.tight_layout()
     plt.savefig('results/channel_efficiency.png')
+
 
 def print_airtime_norm_per_station():
     viridis(0.5, 1.0, 10)
@@ -154,13 +154,14 @@ def print_airtime_norm_per_station():
     # plotting
     # 5G _ JC
     ax = data2.plot.bar(title='Per station normalized airtime', legend=False, ylim=(0, 1))
-    #ax.set(xlabel="Number of transmitting Wi-Fi stations", ylabel="% of time")
+    # ax.set(xlabel="Number of transmitting Wi-Fi stations", ylabel="% of time")
     ax.set_xlabel('Number of transmitting Wi-Fi stations', fontsize=14)
     ax.set_ylabel('Mean normalized airtime', fontsize=14)
 
     # Save to file
     plt.tight_layout()
     plt.savefig('results/normalized_airtime_per_station.png')
+
 
 def print_airtime_per_station():
     viridis(0.0, 1.0, 10)
@@ -174,7 +175,7 @@ def print_airtime_per_station():
     # plotting
     # 5G _ JC
     ax = data2.plot.bar(title='Per station airtime', legend=False, ylim=(0, 100))
-    #ax.set(xlabel="Number of transmitting Wi-Fi stations", ylabel="% of time")
+    # ax.set(xlabel="Number of transmitting Wi-Fi stations", ylabel="% of time")
     ax.set_xlabel('Number of transmitting Wi-Fi stations', fontsize=14)
     ax.set_ylabel('Mean airtime', fontsize=14)
 
@@ -189,25 +190,20 @@ def print_nru_airtime():
 
     data = pd.read_csv('nru_airtime_good.csv', delimiter=',')
 
-
     # group by number of stations and calculate mean colision proob
-    #data2 = data.groupby(['Gnb'])['ChannelOccupancy'].mean()
+    # data2 = data.groupby(['Gnb'])['ChannelOccupancy'].mean()
     data3 = data.groupby(['Gnb'])['ChannelEfficiency'].mean()
-
-
-
 
     # plotting
     # 5G _ JC
-    #ax = data2.plot(title='NR-U airtime', marker='o', legend=True, ylim=(0, 1))
+    # ax = data2.plot(title='NR-U airtime', marker='o', legend=True, ylim=(0, 1))
     ax2 = data3.plot(title='NR-U airtime', marker='x', legend=True, ylim=(0, 1))
-
 
     data2 = pd.read_csv('lbt_good.csv', delimiter=',')
     data4 = data2.groupby(['Gnb'])['ChannelEfficiency'].mean()
     ax3 = data4.plot(title='NR-U airtime', marker='x', legend=True, ylim=(0, 1), linestyle='--')
 
-    #ax3.legend(['5G-Coex-SimPy occupancy', '5G-Coex-SimPy efficiency', 'NRU-SimPy'])
+    # ax3.legend(['5G-Coex-SimPy occupancy', '5G-Coex-SimPy efficiency', 'NRU-SimPy'])
     ax3.legend(['5G-Coex-SimPy', 'NRU-SimPy'])
     ax3.set_xlabel('Number of transmitting gNBs', fontsize=14)
     ax3.set_ylabel('Efficiency', fontsize=14)
@@ -238,8 +234,8 @@ def print_collision_prob_NRU():
     # 5G _ JC
     ax = data.plot(title='5G_Coexistance vs NRU-MZ', marker='o', legend=True, ylim=(0, 60))
     # DCF - PT
-    ax2 = data2.plot(title='5G_Coexistance vs NRU-MZ', marker='x', legend=True, ylim=(0, 60), linestyle= '--')
-    ax2.legend(['5G-Coex-SimPy',  'NRU-SimPy'])
+    ax2 = data2.plot(title='5G_Coexistance vs NRU-MZ', marker='x', legend=True, ylim=(0, 60), linestyle='--')
+    ax2.legend(['5G-Coex-SimPy', 'NRU-SimPy'])
     ax.set_xlabel('Number of transmitting gNBs', fontsize=14)
     ax.set_ylabel('Collision probability', fontsize=14)
 
@@ -254,7 +250,6 @@ def print_collision_prob_NRU_gap():
     viridis(0.0, 1.0, 2)
 
     data = pd.read_csv('nru_colision_gap.csv', delimiter=',')
-
 
     # group by number of stations and calculate mean colision proob
     data = data.groupby(['Stations'])['Colisions'].mean()
@@ -281,42 +276,33 @@ def print_nru_airtime_gap():
     # group by number of stations and calculate mean colision proob
     data3 = data.groupby(['Gnb'])['ChannelEfficiency'].mean()
 
-
-
-
     # plotting
     # 5G _ JC
     ax2 = data3.plot(title='NR-U gap airtime', marker='o', legend=True, ylim=(0.8, 1))
-
 
     data2 = pd.read_csv('lbt_gap2.csv', delimiter=',')
     data4 = data2.groupby(['Gnb'])['ChannelEfficiency'].mean()
     ax3 = data4.plot(title='NR-U airtime', marker='x', legend=True, ylim=(0.8, 1), linestyle='--')
 
-    ax2.legend(['5G-Coex-SimPy',  'NRU-SimPy'])
+    ax2.legend(['5G-Coex-SimPy', 'NRU-SimPy'])
 
     matlab = pd.read_csv('matlab.csv', delimiter=',')
     matalb2 = matlab.groupby(['Gnb'])['ChannelEfficiency'].mean()
     ax4 = matalb2.plot(title='NR-U airtime', marker='x', legend=True, ylim=(0.8, 1), linestyle='--')
 
-
-
     ax2.legend(['5G-Coex-SimPy', 'NRU-SimPy', 'Matlab'])
     ax2.set_xlabel('Number of transmitting gNBs', fontsize=14)
     ax2.set_ylabel('Efficiency', fontsize=14)
-
 
     # # DCF - PT
     # ax2 = data2.plot(title='5G_Coexistance vs DCF simulators', marker='x', legend=True, ylim=(0, 40))
     # ax2.set(xlabel="Number of transmitting Wi-Fi stations", ylabel="Collision probability")
     # ax2.legend(['5G-Coexistance-Simpy', 'DCF-Simpy'])
 
-
-
-
     # Save to file
     plt.tight_layout()
     plt.savefig('results/nru_airtime_gap7.png')
+
 
 def print_coexistance_airtime():
     # read data from csv
@@ -331,13 +317,14 @@ def print_coexistance_airtime():
     ax = data2.plot(title='Coexistance airtime', marker='o', legend=True, ylim=(0, 1))
     ax2 = data3.plot(title='Coexistance airtime', marker='x', legend=True, ylim=(0, 1))
 
-    ax2.legend(['cotNR',  'cotWifi'])
+    ax2.legend(['cotNR', 'cotWifi'])
 
     ax2.set_xlabel('Number of Wifi/NR nodes', fontsize=14)
     ax2.set_ylabel('Channel occupancy time', fontsize=14)
     # Save to file
     plt.tight_layout()
     plt.savefig('results/coex_airtime.png')
+
 
 def print_coexistance_airtime_my():
     # read data from csv
@@ -352,7 +339,7 @@ def print_coexistance_airtime_my():
     ax = data2.plot(title='Coexistance airtime', marker='o', legend=True, ylim=(0, 1))
     ax2 = data3.plot(title='Coexistance airtime', marker='x', legend=True, ylim=(0, 1))
 
-    ax2.legend(['cotNR',  'cotWifi'])
+    ax2.legend(['cotNR', 'cotWifi'])
 
     ax2.set_xlabel('Number of Wifi/NR nodes', fontsize=14)
     ax2.set_ylabel('Channel occupancy time', fontsize=14)
@@ -362,7 +349,6 @@ def print_coexistance_airtime_my():
 
 
 def print_coex():
-
     viridis(0.0, 1.0, 4)
 
     data_my = pd.read_csv('coex_gnb_wifi_RS.csv', delimiter=',')
@@ -387,8 +373,8 @@ def print_coex():
     plt.tight_layout()
     plt.savefig('results/coex_comparison_rs2.png')
 
-def print_matlab():
 
+def print_matlab():
     viridis(0.0, 1.0, 4)
 
     data_matlab = pd.read_csv('coex_matlab4.csv', delimiter=',')
@@ -406,8 +392,8 @@ def print_matlab():
     plt.tight_layout()
     plt.savefig('results/coex_comparison2.png')
 
-def print_coex_gap():
 
+def print_coex_gap():
     viridis(0.0, 1.0, 4)
 
     data_my = pd.read_csv('coex_gnbOnly.csv', delimiter=',')
@@ -431,6 +417,7 @@ def print_coex_gap():
 
     plt.tight_layout()
     plt.savefig('results/coex_compa_gap.png')
+
 
 def print_coex_gap_matlab():
     viridis(0.0, 1.0, 4)
@@ -457,6 +444,7 @@ def print_coex_gap_matlab():
     plt.tight_layout()
     plt.savefig('results/coex_comparison_gap3.png')
 
+
 def valid_wifi():
     viridis(0.0, 1.0, 2)
 
@@ -464,24 +452,23 @@ def valid_wifi():
     matlab = pd.read_csv('da/matlab_wifi.csv', delimiter=',')
 
     dcf2 = dcf.groupby(['WiFi'])['ChannelOccupancy'].mean()
-    #data_my_gnb = data_my.groupby(['Gnb'])['ChannelOccupancyNR'].mean()
+    # data_my_gnb = data_my.groupby(['Gnb'])['ChannelOccupancyNR'].mean()
 
     data_my2 = pd.read_csv('valid_wifi.csv', delimiter=',')
 
-    rs = data_my.groupby(['Gnb'])['ChannelOccupancy'].mean()
+    # rs = data_my.groupby(['Gnb'])['ChannelOccupancy'].mean()
 
     data_my3 = pd.read_csv('valid_wifi.csv', delimiter=',')
 
-    gap = data_my.groupby(['Gnb'])['ChannelOccupancy'].mean()
-
+    # gap = data_my.groupby(['Gnb'])['ChannelOccupancy'].mean()
 
     data_matlab = pd.read_csv('coex_gap_wifi.csv', delimiter=',')
 
     data_matlab_wifi = data_matlab.groupby(['nWifi'])['cotWifi'].mean()
     data_matlab_gnb = data_matlab.groupby(['nWifi'])['cotNR'].mean()
 
-    ax1 = wifi.plot(title='Coexistance airtime', marker='o', legend=True, ylim=(0, 1))
-    #ax2 = data_my_gnb.plot(title='Coexistance airtime', marker='o', legend=True, ylim=(0, 1))
+    # ax1 = wifi.plot(title='Coexistance airtime', marker='o', legend=True, ylim=(0, 1))
+    # ax2 = data_my_gnb.plot(title='Coexistance airtime', marker='o', legend=True, ylim=(0, 1))
     ax1 = data_matlab_wifi.plot(title='Coexistance airtime', marker='x', legend=True, ylim=(0, 1), linestyle='--')
     ax2 = data_matlab_gnb.plot(title='Coexistance airtime', marker='x', legend=True, ylim=(0, 1), linestyle='--')
 
@@ -493,34 +480,25 @@ def valid_wifi():
     plt.savefig('results/coex_comparison_gap3.png')
 
 
-
-
-
-
-
 if __name__ == "__main__":
-    #print_collision_prob()
+    # print_collision_prob()
     print_airtime_34()
-    #print_airtime_norm_per_station()
-    #print_airtime_per_station()
-    #print_channel_occupancy()
-    #print_channel_efficency()
+    # print_airtime_norm_per_station()
+    # print_airtime_per_station()
+    # print_channel_occupancy()
+    # print_channel_efficency()
 
-    #NRU RS
-    #print_nru_airtime()
-    #print_collision_prob_NRU()
+    # NRU RS
+    # print_nru_airtime()
+    # print_collision_prob_NRU()
 
-    #NRU gap
-    #print_collision_prob_NRU_gap()
-    #print_nru_airtime_gap()
+    # NRU gap
+    # print_collision_prob_NRU_gap()
+    # print_nru_airtime_gap()
 
-    #COEXY
-    #print_coexistance_airtime()
-    #print_coexistance_airtime_my()
-    #print_coex()
-    #print_matlab()
-    #print_coex_gap_matlab()
-
-
-
-
+    # COEXY
+    # print_coexistance_airtime()
+    # print_coexistance_airtime_my()
+    # print_coex()
+    # print_matlab()
+    # print_coex_gap_matlab()
