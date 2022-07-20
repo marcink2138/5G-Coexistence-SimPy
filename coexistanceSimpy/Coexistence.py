@@ -8,7 +8,6 @@ from typing import Dict, List
 
 import simpy
 
-# from CoexistenceFBEext import GnbFBE
 from Times import *
 
 output_csv = "output_test.csv"
@@ -16,11 +15,11 @@ file_log_name = f"{datetime.today().strftime('%Y-%m-%d-%H-%M-%S')}.log"
 
 typ_filename = "RS_coex_1sta_1wifi2.log"
 
-logging.basicConfig(filename="",
+logging.basicConfig(filename=file_log_name,
                     format='%(asctime)s %(message)s',
                     filemode='w')
 logger = logging.getLogger()
-logger.setLevel(logging.CRITICAL)  # chose DEBUG to display stats in debug mode :)
+logger.setLevel(logging.DEBUG)  # chose DEBUG to display stats in debug mode :)
 
 colors = [
     "\033[30m",
@@ -36,6 +35,9 @@ colors = [
 big_num = 100000  # some big number for quesing in peeemtive resources - big starting point
 
 gap = True
+NONE_ENCHANTMENT = 'none'
+CONTINUOUS_FRAMES_ENCHANTMENT = 'continuous_frames'
+fbe_enchantments = [NONE_ENCHANTMENT, CONTINUOUS_FRAMES_ENCHANTMENT]
 
 
 class Channel_occupied(Exception):
@@ -199,6 +201,7 @@ class Station:
             # lista zobaczyc czy zajety kanal przez tx_list
             #
             if res not in result:  # check if this station got lock, if not just wait you frame time
+                log(self, f'Inside if in {self.name}')
                 raise simpy.Interrupt("There is a longer frame...")
                 # yield self.env.timeout(self.frame_to_send.frame_time)
                 # return False
@@ -897,17 +900,49 @@ class TransmissionNRFbe:
     t_to_send: int = None  # how much time it took to sent successfully
 
 
-@dataclass()
 class FBETimers:
-    slot_time: int = 9
+    def __init__(self,
+                 ffp: int,
+                 cot: int,
+                 cca_slots_num=5):
+        # fixed frame period
+        self.ffp = ffp
+        self.observation_slot_time = 9
+        self.cot = self.check_cot(cot)
+        self.idle_period = ffp - self.cot
+        self.cca = self.check_cca(cca_slots_num)
+
+    def __repr__(self):
+        return 'ffp : {} \n'.format(self.ffp) + 'cot : {} \n'.format(self.cot) + 'idle_period : {} \n'.format(
+            self.idle_period) + 'cca : {} \n'.format(self.cca)
+
+    def check_cot(self, cot):
+        max_cot = self.ffp * 0.95
+        if cot > max_cot:
+            print('COT exceeded maximum range. Setting {} (95% of FFP) instead.'.format(max_cot))
+            return max_cot
+        return cot
+
+    def check_cca(self, cca_slots_num):
+        cca = cca_slots_num * self.observation_slot_time
+        if cca > self.idle_period:
+            print('CCA exceeded idle period time. Setting {} (idle period time) instead.'.format(self.idle_period))
+            return self.idle_period
+        return cca
 
 
 class GnbFBE:
+    station_number = 0
+
     def __init__(self,
                  name: str,
                  env: simpy.Environment,
                  channel: dataclass,
-                 col: str
+                 col: str,
+                 timers: FBETimers,
+                 run_with_offset=False,
+                 offset=0,
+                 fbe_enchantment='none'
                  ):
         self.name = name
         self.env = env
@@ -916,30 +951,113 @@ class GnbFBE:
         self.failed_transmissions_in_row = 0
         self.channel = channel
         self.col = col
-        self.timers = FBETimers()
+        self.timers = timers
         self.process = None
         self.transmission_process = None
         self.transmission_time = 15
+        self.skip_next_cot = False
+        self.air_time = 0
+        self.run_with_offset = run_with_offset
+        self.offset = offset
+        if fbe_enchantment not in fbe_enchantments:
+            print(f'Enchantment: {fbe_enchantment} '
+                  f'in {fbe_enchantments} creating GnbFBE object with standard functionality')
+            fbe_enchantment = 'none'
+        self.fbe_enchantment = fbe_enchantment
+        self.max_frames_in_a_row = 5
+        self.max_muted_periods = 5
+        self.selected_number_of_frames_in_a_row = -1
+        self.selected_number_of_muted_periods = 0
+
         env.process(self.start())
 
     def start(self):
+        if self.run_with_offset:
+            yield self.env.timeout(self.offset)
+        # Init cca process
+        self.process = self.env.process(self.process_cca())
+        yield self.process
+
+        if self.fbe_enchantment == 'none':
+            yield self.env.process(self.standard_fbe())
+        elif self.fbe_enchantment == 'continuous_frames':
+            yield self.env.process(self.continuous_frames_enchantment())
+
+    def continuous_frames_enchantment(self):
         while True:
-            was_sent = False
-            while not was_sent:
-                self.process = self.env.process(self.wait_back_off())
-                yield self.process
-                self.transmission_process = self.env.process(self.send_transmission())
-                yield self.transmission_process
+            if self.selected_number_of_frames_in_a_row == 0:
+                self.selected_number_of_muted_periods = self.gen_random_station_start_shift(self.max_muted_periods)
+                log(self,
+                    f"Selecting number of muted periods. Selected number: {self.selected_number_of_muted_periods}")
+                for i in range(0, self.selected_number_of_muted_periods):
+                    log(self, f"Skipping frame... {i + 1}/{self.selected_number_of_muted_periods}")
+                    yield self.env.process(self.fbe_skip_process())
+                    self.selected_number_of_frames_in_a_row = -1
 
-    def wait_back_off(self):
-        yield self.env.timeout(self.generate_backoff())
+            if self.skip_next_cot:
+                yield self.env.process(self.fbe_skip_process())
+            else:
+                if self.selected_number_of_frames_in_a_row == -1:
+                    self.selected_number_of_frames_in_a_row = \
+                        self.gen_random_station_start_shift(self.max_frames_in_a_row)
+                    log(self,
+                        f'Selecting number of frames which will be transmitted in the row. '
+                        f'Selected number: {self.selected_number_of_frames_in_a_row} ')
 
-    def generate_backoff(self):
-        rand = random.randint(1, 5)
-        val = self.timers.slot_time * rand
-        s = 'Genereted backoff {}'.format(val)
-        log(self, s)
-        return val
+                log(self, f'Continuous frames to go: {self.selected_number_of_frames_in_a_row}')
+                yield self.env.process(self.fbe_transmission_process())
+
+    def standard_fbe(self):
+        while True:
+            if self.skip_next_cot:
+                yield self.env.process(self.fbe_skip_process())
+            else:
+                yield self.env.process(self.fbe_transmission_process())
+
+    def fbe_skip_process(self):
+        yield self.env.process(self.skip_cot())
+        yield self.env.process(self.wait_until_cca())
+        self.process = self.env.process(self.process_cca())
+        yield self.process
+
+    def fbe_transmission_process(self):
+        self.transmission_process = self.env.process(self.send_transmission())
+        yield self.transmission_process
+        yield self.env.process(self.wait_until_cca())
+        self.process = self.env.process(self.process_cca())
+        yield self.process
+
+    def wait_until_cca(self):
+        yield self.env.timeout(self.timers.idle_period - self.timers.cca)
+
+    def skip_cot(self):
+        yield self.env.timeout(self.timers.cot)
+
+    def gen_random_station_start_shift(self, random_range):
+        return random.randint(1, random_range)
+
+    def process_cca(self):
+        init = self.env.now
+        try:
+            self.channel.cca_list_NR_FBE.append(self)
+            log(self, 'Sensing if channel is idle')
+            if len(self.channel.tx_list_NR_FBE) > 0:
+                raise simpy.Interrupt("CCA interrupted!")
+            yield self.env.timeout(self.timers.cca)
+            self.skip_next_cot = False
+            self.channel.cca_list_NR_FBE.remove(self)
+        except simpy.Interrupt:
+            end = self.env.now
+            diff = end - init
+            log(self, 'CCA interrupted, skipping next FFP')
+            if diff == 0:
+                yield self.env.timeout(self.timers.cca)
+            else:
+                yield self.env.timeout(diff)
+            self.skip_next_cot = True
+            if self.fbe_enchantment == CONTINUOUS_FRAMES_ENCHANTMENT:
+                self.selected_number_of_frames_in_a_row = -1
+            self.channel.cca_list_NR_FBE.remove(self)
 
     def check_collision(self):
         lists_len_sum = self.get_transmitters_list_len_sum()
@@ -950,26 +1068,20 @@ class GnbFBE:
         return True
 
     def send_transmission(self):
-        global start
-        global flag
         self.channel.tx_list_NR_FBE.append(self)
-        with self.channel.tx_lock.request() as req:
+        with self.channel.tx_lock.request() as request_token:
             try:
                 log(self, f"Starting transmission")
-                start = self.env.now
-                yield req
-                flag = False
-                if len(self.channel.tx_list_NR_FBE) > 1:
-                    for gnbFbe in self.channel.tx_list_NR_FBE:
-                        if gnbFbe == self:
-                            continue
-                        if gnbFbe.transmission_process.is_alive:
-                            gnbFbe.transmission_process.interrupt()
-                            continue
-                    flag = True
+                request = yield request_token | self.env.timeout(0)
+                if request_token not in request:
                     raise simpy.Interrupt("Collision in channel")
-
-                yield self.env.timeout(self.transmission_time)
+                for station in self.channel.cca_list_NR_FBE:
+                    if station.process.is_alive:
+                        station.process.interrupt()
+                now = self.env.now
+                if 1000000 - now < self.timers.cot:
+                    self.sent_completed(True)
+                yield self.env.timeout(self.timers.cot)
                 if len(self.channel.tx_list_NR_FBE) > 1:
                     self.sent_failed()
                 else:
@@ -977,12 +1089,7 @@ class GnbFBE:
                 self.channel.tx_list_NR_FBE.remove(self)
 
             except simpy.Interrupt:
-                end = self.env.now
-                already_send = end - start
-                if flag:
-                    yield self.env.timeout(self.transmission_time)
-                else:
-                    yield self.env.timeout(self.transmission_time - already_send)
+                yield self.env.timeout(self.timers.cot)
                 self.channel.tx_list_NR_FBE.remove(self)
                 self.sent_failed()
 
@@ -993,10 +1100,19 @@ class GnbFBE:
         log(self, f"Transmission failed")
         self.failed_transmissions += 1
         self.channel.failed_transmissions_NR_FBE += 1
+        if self.fbe_enchantment == CONTINUOUS_FRAMES_ENCHANTMENT:
+            self.selected_number_of_frames_in_a_row = -1
 
-    def sent_completed(self):
+    def sent_completed(self, interrupted_by_simulation_end=False):
         log(self, f"Successfully sent transmission")
-        self.succeeded_transmissions += 1
+        if self.fbe_enchantment == CONTINUOUS_FRAMES_ENCHANTMENT:
+            self.selected_number_of_frames_in_a_row += -1
+        if interrupted_by_simulation_end:
+            self.air_time = self.succeeded_transmissions * self.timers.cot + 1000000 - self.env.now
+            self.succeeded_transmissions += 1
+        else:
+            self.succeeded_transmissions += 1
+            self.air_time = self.succeeded_transmissions * self.timers.cot
         self.channel.succeeded_transmissions_NR_FBE += 1
 
 
@@ -1016,6 +1132,7 @@ class Channel:
     tx_list_NR: List[Gnb] = field(default_factory=list)  # transmitting stations in the channel
     tx_list_NR_FBE: List[GnbFBE] = field(default_factory=list)  # transmitting FBE stations in the channel
     back_off_list_NR: List[Gnb] = field(default_factory=list)  # stations in backoff phase
+    cca_list_NR_FBE: List[GnbFBE] = field(default_factory=list)
     # problem list of station objects, what if we 2 differenet station objects???
 
     failed_transmissions: int = 0  # total failed transmissions
@@ -1027,18 +1144,35 @@ class Channel:
     succeeded_transmissions_NR_FBE: int = 0  # total succeeded FBE transmissions
 
 
-if __name__ == "__main__":
-    environment = simpy.Environment()
-    channel = Channel(None, simpy.Resource(environment, capacity=1), 0, 0, None, None, None, None, None)
-    list_test = []
-    for i in range(1, 5):
-        list_test.append(GnbFBE("GnbFBE {}".format(i), environment, channel, "\033[30m"))
-        print('siema')
+def single_run_test(
+        seeds: int,
+        stations_number: int,
+        gnb_number: int,
+        simulation_time: int,
+):
+    backoffs = {key: {stations_number: 0} for key in range(63 + 1)}
+    airtime_data = {"Station {}".format(i): 0 for i in range(1, stations_number + 1)}
+    airtime_control = {"Station {}".format(i): 0 for i in range(1, stations_number + 1)}
+    airtime_data_NR = {"Gnb {}".format(i): 0 for i in range(1, gnb_number + 1)}
+    airtime_control_NR = {"Gnb {}".format(i): 0 for i in range(1, gnb_number + 1)}
+    # run_simulation(stations_number, gnb_number, seeds, simulation_time, Config(payload_size, cw_min, cw_max, r_limit, mcs_value),
+    #                backoffs, airtime_data, airtime_control)
+    run_simulation(stations_number, gnb_number, seeds, simulation_time,
+                   Config(),
+                   Config_NR(),
+                   backoffs, airtime_data, airtime_control, airtime_data_NR, airtime_control_NR)
 
-    environment.run(until=1000000)
-    print('Successful transmitions {}'.format(channel.succeeded_transmissions_NR_FBE))
-    print('Failed transmitions {}'.format(channel.failed_transmissions_NR_FBE))
-    for gnb in list_test:
-        print(gnb.name)
-        print('Successful transmitions {}'.format(gnb.succeeded_transmissions))
-        print('Failed transmitions {}'.format(gnb.failed_transmissions))
+
+if __name__ == "__main__":
+    '''''
+    single_gnb_test_runs(1, 5000, 250)
+    single_gnb_test_runs(2, 5000, 750)
+    single_gnb_test_runs(3, 5000, 1250)
+    single_gnb_test_runs(4, 5000, 1750)
+    single_gnb_test_runs(5, 5000, 2250)
+    single_gnb_test_runs(6, 5000, 2750)
+    single_gnb_test_runs(7, 5000, 3250)
+    single_gnb_test_runs(8, 5000, 3750)
+    single_gnb_test_runs(9, 5000, 4250)
+    single_gnb_test_runs(10, 5000, 4750)
+    '''''
