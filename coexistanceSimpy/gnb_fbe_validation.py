@@ -6,14 +6,14 @@ from Coexistence import *
 simulation_time = 1000000
 
 
-def run_single_station(station_number, ffp, cot, airtime_list, fbe_enchantment='none'):
+def run_single_station(station_number, ffp, cot, airtime_list):
     environment = simpy.Environment()
     channel = Channel(None, simpy.Resource(environment, capacity=1), 0, 0, None, None, None, None, None)
     list_test = []
     timers = FBETimers(ffp, cot)
     # for i in range(1, 5):
-    list_test.append(GnbFBE("GnbFBE {}".format(station_number), environment, channel, "\033[30m", timers,
-                            fbe_enchantment=fbe_enchantment))
+    list_test.append(
+        DeterministicBackoffFBE("GnbFBE {}".format(station_number), environment, channel, "\033[30m", timers))
 
     environment.run(until=simulation_time)
     for gnb in list_test:
@@ -35,7 +35,7 @@ def run_multiple_stations(offsets, ffp, cot_list):
         print('Cot = {}'.format(cot))
         print(repr(timers))
         for i in range(0, len(offsets)):
-            gnb = GnbFBE("GnbFBE {}".format(i), env, channel, "\033[30m", timers, True, offsets[i], fbe_enchantment=CONTINUOUS_FRAMES_ENCHANTMENT)
+            gnb = DeterministicBackoffFBE("GnbFBE {}".format(i), env, channel, "\033[30m", timers, True, offsets[i])
             stations_list.append(gnb)
         env.run(until=simulation_time)
         for station in stations_list:
@@ -135,9 +135,11 @@ if __name__ == "__main__":
     #          'Airtime [us]')
     # ffp_list = [1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000]
     # run_test(lambda: fixed_cot_variables_ffp(ffp_list), "Single station, floating FFP", 'FFP [us]', 'Airtime [us]')
-    offset_list = [0, 2500, 5000, 7500]
-    cot_list = [1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000]
-    run_test(lambda: run_multiple_stations(offset_list, 10000, cot_list), "Many stations with offsets, floating COT",
-             "COT [us]", "Airtime [us]", run_multiple_station=True)
-    #continuous_enchantment_test(cot_list)
+    # offset_list = [0, 2500, 5000, 7500]
+    # cot_list = [1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000]
+    # run_test(lambda: run_multiple_stations(offset_list, 10000, cot_list), "Many stations with offsets, floating COT",
+    #        "COT [us]", "Airtime [us]", run_multiple_station=True)
+    # continuous_enchantment_test(cot_list)
     # run_multiple_stations(offset_list, 10000, cot_list)
+    # run_single_station(1, 10000, 5000, [])
+    run_multiple_stations([0, 0], 10000, [5000])
