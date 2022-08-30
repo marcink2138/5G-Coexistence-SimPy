@@ -1,4 +1,14 @@
+import faulthandler
+import json
+import os
+import threading
+
 from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5.QtWidgets import QFileDialog
+
+from coexistanceSimpy import FBEVersion
+from scenario_creator_helper import get_station_list
+from simulation_runner import run_simulation
 
 txt_browser_global_ref = None
 
@@ -109,19 +119,29 @@ def set_db_fbe_rows(row, fbe_table, sample_data):
     fbe_table.setItem(row, 6, QtWidgets.QTableWidgetItem(sample_data["threshold"]))
 
 
-def fill_fbe_table(spinbox, table, fill_fun, sample_fbe_config):
-    number = spinbox.value()
+def fill_fbe_table(number, table, fill_fun, sample_fbe_config):
+    # number = spinbox.value()
     table.setRowCount(number)
     for row in range(0, number):
         fill_fun(row, table, sample_fbe_config)
+
+
+def fill_fbe_table_custom_json(table, fill_fun, config_json):
+    if config_json is None or config_json == '':
+        return
+    table.setRowCount(len(config_json))
+    i = 0
+    for station_config in config_json:
+        fill_fun(i, table, station_config)
+        i += 1
 
 
 def set_standard_fbe_rows(row, table, sample_fbe_config):
     set_base_table_rows(row, table, sample_fbe_config)
 
 
-def handle_accept_station_button_click(spinbox, table, fun, sample_config):
-    fill_fbe_table(spinbox, table, fun, sample_config)
+def handle_accept_station_button_click(number, table, fun, sample_config):
+    fill_fbe_table(number, table, fun, sample_config)
 
 
 def clear_table(table):
@@ -149,6 +169,8 @@ def handle_delete_rows_button_click(table):
 
 class Ui_MainWindow(object):
     def __init__(self):
+        self.json_label = None
+        self.choose_config_button = None
         self.delete_db_fbe_rows_button = None
         self.delete_floating_fbe_rows_button = None
         self.delete_fixed_muting_fbe_rows_button = None
@@ -426,6 +448,23 @@ class Ui_MainWindow(object):
         self.textBrowser = QtWidgets.QTextBrowser(self.centralwidget)
         self.textBrowser.setGeometry(QtCore.QRect(650, 620, 361, 111))
         self.textBrowser.setObjectName("textBrowser")
+
+        self.choose_config_button = QtWidgets.QPushButton(self.centralwidget)
+        self.choose_config_button.setGeometry(QtCore.QRect(60, 580, 75, 40))
+        font = QtGui.QFont()
+        font.setBold(True)
+        font.setWeight(75)
+        self.choose_config_button.setFont(font)
+        self.choose_config_button.setLayoutDirection(QtCore.Qt.LeftToRight)
+        self.choose_config_button.setStyleSheet("white-space: normal;")
+        self.choose_config_button.setAutoExclusive(False)
+        self.choose_config_button.setObjectName("choose_config_button")
+
+        self.json_label = QtWidgets.QLabel(self.centralwidget)
+        self.json_label.setGeometry(QtCore.QRect(60, 540, 75, 40))
+        self.json_label.setAlignment(QtCore.Qt.AlignCenter)
+        self.json_label.setObjectName("json_label")
+
         MainWindow.setCentralWidget(self.centralwidget)
         self.statusbar = QtWidgets.QStatusBar(MainWindow)
         self.statusbar.setObjectName("statusbar")
@@ -496,6 +535,8 @@ class Ui_MainWindow(object):
         self.run_simulation_button.setText(_translate("MainWindow", "Run simulation"))
         self.reset_all_settings_button.setText(_translate("MainWindow", "Reset \n"
                                                                         " all settings"))
+        self.choose_config_button.setText(_translate("MainWindow", "Select conf"))
+        self.json_label.setText(_translate("MainWindow", "Select conf"))
         self.attach_event_handlers_to_buttons()
 
     def attach_event_handlers_to_buttons(self):
@@ -535,18 +576,20 @@ class Ui_MainWindow(object):
         self.delete_floating_fbe_rows_button.clicked.connect(
             lambda: self.handle_delete_rows_button_click(self.floating_fbe_table))
         self.delete_db_fbe_rows_button.clicked.connect(lambda: self.handle_delete_rows_button_click(self.db_fbe_table))
+        self.choose_config_button.clicked.connect(self.handle_choose_json_config)
+        self.run_simulation_button.clicked.connect(self.run_simulation)
 
     def handle_accept_station_button_click_wrapper(self):
-        handle_accept_station_button_click(self.standard_fbe_spinbox, self.standard_fbe_table,
+        handle_accept_station_button_click(self.standard_fbe_spinbox.value(), self.standard_fbe_table,
                                            set_standard_fbe_rows,
                                            sample_standard_fbe_config)
-        handle_accept_station_button_click(self.random_muting_fbe_spinbox, self.random_muting_fbe_table,
+        handle_accept_station_button_click(self.random_muting_fbe_spinbox.value(), self.random_muting_fbe_table,
                                            set_random_muting_fbe_rows, sample_random_muting_fbe_config)
-        handle_accept_station_button_click(self.fixed_muting_fbe_spinbox, self.fixed_muting_fbe_table,
+        handle_accept_station_button_click(self.fixed_muting_fbe_spinbox.value(), self.fixed_muting_fbe_table,
                                            set_fixed_muting_fbe_rows, sample_fixed_muting_fbe_config)
-        handle_accept_station_button_click(self.floating_point_fbe_spinbox, self.floating_fbe_table,
+        handle_accept_station_button_click(self.floating_point_fbe_spinbox.value(), self.floating_fbe_table,
                                            set_floating_fbe_rows, sample_floating_fbe_config)
-        handle_accept_station_button_click(self.db_fbe_spinbox, self.db_fbe_table, set_db_fbe_rows,
+        handle_accept_station_button_click(self.db_fbe_spinbox.value(), self.db_fbe_table, set_db_fbe_rows,
                                            sample_db_fbe_config)
 
     def handle_reset_all_settings_button_click(self):
@@ -565,6 +608,46 @@ class Ui_MainWindow(object):
         self.enable_logging_checkbox.setChecked(False)
         self.debug('Init values set')
 
+    def handle_choose_json_config(self):
+        json_path = QFileDialog.getOpenFileName(
+            caption="Select json file",
+            directory=os.getcwd(),
+            initialFilter='Json file (*.json)',
+            filter='Json file (*.json)'
+        )
+        if json_path[0] is None or json_path[0] == '':
+            self.debug(f'Json selection aborted')
+            return
+        json_name = json_path[0].split('/')[-1]
+        self.debug(f'Selected config json: {json_name}')
+        f = open(json_path[0])
+        conf = json.load(f)
+        f.close()
+        standard_fbe_conf = None
+        floating_fbe_conf = None
+        random_muting_fbe_conf = None
+        fixed_muting_fbe_conf = None
+        db_fbe_conf = None
+        if FBEVersion.STANDARD_FBE.name in conf:
+            standard_fbe_conf = conf[FBEVersion.STANDARD_FBE.name]
+        if FBEVersion.FLOATING_FBE.name in conf:
+            floating_fbe_conf = conf[FBEVersion.FLOATING_FBE.name]
+        if FBEVersion.FIXED_MUTING_FBE.name in conf:
+            fixed_muting_fbe_conf = conf[FBEVersion.FIXED_MUTING_FBE.name]
+        if FBEVersion.RANDOM_MUTING_FBE.name in conf:
+            random_muting_fbe_conf = conf[FBEVersion.RANDOM_MUTING_FBE.name]
+        if FBEVersion.DETERMINISTIC_BACKOFF_FBE.name in conf:
+            db_fbe_conf = conf[FBEVersion.DETERMINISTIC_BACKOFF_FBE.name]
+        fill_fbe_table_custom_json(self.standard_fbe_table, set_standard_fbe_rows, standard_fbe_conf)
+        fill_fbe_table_custom_json(self.random_muting_fbe_table, set_random_muting_fbe_rows, random_muting_fbe_conf)
+        fill_fbe_table_custom_json(self.floating_fbe_table, set_floating_fbe_rows, floating_fbe_conf)
+        fill_fbe_table_custom_json(self.fixed_muting_fbe_table, set_fixed_muting_fbe_rows, fixed_muting_fbe_conf)
+        fill_fbe_table_custom_json(self.db_fbe_table, set_db_fbe_rows, db_fbe_conf)
+        if "SIMULATION_TIME" in conf:
+            self.simulation_time_input.setText(conf["SIMULATION_TIME"])
+        if "ENABLE_LOGGING" in conf:
+            self.enable_logging_checkbox.setChecked()
+
     def debug(self, info):
         text = self.textBrowser.toPlainText()
         self.textBrowser.setText(info + '\n' + text)
@@ -577,9 +660,27 @@ class Ui_MainWindow(object):
             table.removeRow(row)
             self.debug(f'Row {row} deleted')
 
+    def run_simulation(self):
+        station_list, simulation_time = self.collect_simulation_params()
+        t = threading.Thread(target=lambda: run_simulation(station_list, simulation_time, None))
+        self.debug('Simulation is running. Wait for results ...')
+        t.start()
+        # simulation_runner_worker = SimulationRunnerWorker()
+        # simulation_runner_worker.set_simulation_params(station_list, simulation_time)
+        # simulation_runner_worker.start()
+        # simulation_runner_worker.debug_signal.connect(self.debug)
+
+    def collect_simulation_params(self):
+        station_list = get_station_list(self.standard_fbe_table, self.fixed_muting_fbe_table,
+                                        self.random_muting_fbe_table, self.floating_fbe_table, self.db_fbe_table)
+        simulation_time = int(self.simulation_time_input.text())
+        return station_list, simulation_time
+
 
 if __name__ == "__main__":
     import sys
+
+    faulthandler.enable()
 
     app = QtWidgets.QApplication(sys.argv)
     MainWindow = QtWidgets.QMainWindow()

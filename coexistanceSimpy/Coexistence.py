@@ -6,13 +6,14 @@ from abc import abstractmethod, ABC
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, List
+from enum import Enum
 
 import simpy
 
 from Times import *
 
 output_csv = "output_test.csv"
-file_log_name = f"{datetime.today().strftime('%Y-%m-%d-%H-%M-%S')}.log"
+file_log_name = f"{os.getcwd()}/logs/{datetime.today().strftime('%Y-%m-%d-%H-%M-%S')}.log"
 
 typ_filename = "RS_coex_1sta_1wifi2.log"
 
@@ -36,9 +37,24 @@ colors = [
 big_num = 100000  # some big number for quesing in peeemtive resources - big starting point
 
 gap = True
-NONE_ENCHANTMENT = 'none'
-CONTINUOUS_FRAMES_ENCHANTMENT = 'continuous_frames'
-fbe_enchantments = [NONE_ENCHANTMENT, CONTINUOUS_FRAMES_ENCHANTMENT]
+
+
+# class FBELogger:
+#
+#     def __init__(self, is_enabled=True) -> None:
+#         super().__init__()
+#         if is_enabled:
+#             self.file_name = f"{datetime.today().strftime('%Y-%m-%d-%H-%M-%S')}.log"
+#         else:
+#             self.file_name = None
+#         logging.basicConfig(filename=self.file_name,
+#                             format='%(asctime)s %(message)s',
+#                             filemode='w')
+#         self.logger = logging.getLogger()
+#         self.logger.setLevel(logging.DEBUG)
+#
+#     def log(self, gnb, mes):
+#         self.logger.info(f"Time: {gnb.env.now} Station: {gnb.name} Message: {mes}")
 
 
 class Channel_occupied(Exception):
@@ -77,8 +93,9 @@ def random_sample(max, number, min_distance=0):  # func used to desync gNBs
 
 
 def log(gnb, mes: str) -> None:
+    pass
     logger.info(
-        f"{gnb.col}Time: {gnb.env.now} Station: {gnb.name} Message: {mes}"
+        f"Time: {gnb.env.now} Station: {gnb.name} Message: {mes}"
     )
 
 
@@ -933,27 +950,32 @@ class FBETimers:
 
 
 class FBE(ABC):
-    def __init__(self, name: str, env: simpy.Environment, channel: dataclass, col: str, timers: FBETimers,
-                 run_with_offset=False, offset=0):
-        self.name = name
-        self.env = env
+    def __init__(self, name: str, timers: FBETimers, offset=0):
+        self.name = self.__str__() + name
+        self.env = None
         self.succeeded_transmissions = 0
         self.failed_transmissions = 0
         self.failed_transmissions_in_row = 0
-        self.channel = channel
-        self.col = col
+        self.channel = None
         self.timers = timers
         self.process = None
         self.transmission_process = None
         self.transmission_time = 15
         self.skip_next_cot = False
         self.air_time = 0
-        self.run_with_offset = run_with_offset
         self.offset = offset
+        self.run_with_offset = self.offset > 0
 
     @abstractmethod
     def start(self):
         pass
+
+    def set_environment(self, env):
+        self.env = env
+        self.env.process(self.start())
+
+    def set_channel(self, channel):
+        self.channel = channel
 
     def process_cca(self):
         init = self.env.now
@@ -998,13 +1020,16 @@ class FBE(ABC):
                 log(self, f"Starting transmission")
                 request = yield request_token | self.env.timeout(0)
                 if request_token not in request:
-                    log(self, f"Collision in channel")
+                    # log(self, f"Collision in channel")
+                    for station in self.channel.tx_list_NR_FBE:
+                        if station != self and station.process.is_alive:
+                            station.process.interrupt()
                     raise simpy.Interrupt("Collision in channel")
                 for station in self.channel.cca_list_NR_FBE:
                     if station.process.is_alive:
                         station.process.interrupt()
                 now = self.env.now
-                if 1000000 - now < self.timers.cot:
+                if self.channel.simulation_time - now < self.timers.cot:
                     self.sent_completed(True)
                 yield self.env.timeout(self.timers.cot)
                 if len(self.channel.tx_list_NR_FBE) > 1:
@@ -1014,12 +1039,15 @@ class FBE(ABC):
                 self.channel.tx_list_NR_FBE.remove(self)
 
             except simpy.Interrupt:
+                log(self, f"Collision in channel")
                 yield self.env.timeout(self.timers.cot)
                 self.channel.tx_list_NR_FBE.remove(self)
                 self.sent_failed()
 
     def sent_failed(self):
         log(self, f"Transmission failed")
+        event = Event(self.name, EventType.CHANNEL_COLLISION, self.env.now)
+        self.channel.event_list.append(event)
         self.failed_transmissions += 1
         self.channel.failed_transmissions_NR_FBE += 1
 
@@ -1038,8 +1066,10 @@ class FBE(ABC):
 
     def sent_completed(self, interrupted_by_simulation_end=False):
         log(self, f"Successfully sent transmission")
+        event = Event(self.name, EventType.SUCCESSFUL_TRANSMISSION, self.env.now)
+        self.channel.event_list.append(event)
         if interrupted_by_simulation_end:
-            self.air_time = self.succeeded_transmissions * self.timers.cot + 1000000 - self.env.now
+            self.air_time = self.succeeded_transmissions * self.timers.cot + self.channel.simulation_time - self.env.now
             self.succeeded_transmissions += 1
         else:
             self.succeeded_transmissions += 1
@@ -1055,13 +1085,14 @@ class FBE(ABC):
     def skip_cot(self):
         yield self.env.timeout(self.timers.cot)
 
+    def __str__(self) -> str:
+        return "(FBE) "
+
 
 class StandardFBE(FBE):
 
-    def __init__(self, name: str, env: simpy.Environment, channel: dataclass, col: str, timers: FBETimers,
-                 run_with_offset=False, offset=0):
-        super().__init__(name, env, channel, col, timers, run_with_offset, offset)
-        self.env.process(self.start())
+    def __init__(self, name: str, timers: FBETimers, offset=0):
+        super().__init__(name, timers, offset)
 
     def start(self):
         yield self.env.process(self.process_init_offset())
@@ -1071,6 +1102,9 @@ class StandardFBE(FBE):
             else:
                 yield self.env.process(self.fbe_transmission_process())
 
+    def __str__(self) -> str:
+        return "(Standard FBE) "
+
 
 def select_random_number(random_range, bottom_range=1):
     return random.randint(bottom_range, random_range)
@@ -1078,14 +1112,12 @@ def select_random_number(random_range, bottom_range=1):
 
 class RandomMutingFBE(FBE):
 
-    def __init__(self, name: str, env: simpy.Environment, channel: dataclass, col: str, timers: FBETimers,
-                 run_with_offset=False, offset=0, max_frames_in_a_row=5, max_muted_periods=5):
-        super().__init__(name, env, channel, col, timers, run_with_offset, offset)
+    def __init__(self, name: str, timers: FBETimers, offset=0, max_frames_in_a_row=5, max_muted_periods=5):
+        super().__init__(name, timers, offset)
         self.max_frames_in_a_row = max_frames_in_a_row
         self.max_muted_periods = max_muted_periods
         self.selected_number_of_frames_in_a_row = -1
         self.selected_number_of_muted_periods = 0
-        self.env.process(self.start())
 
     def start(self):
         yield self.env.process(self.process_init_offset())
@@ -1113,7 +1145,8 @@ class RandomMutingFBE(FBE):
                 yield self.env.process(self.fbe_transmission_process())
 
     def process_cca(self):
-        yield self.env.process(super().process_cca())
+        self.process = self.env.process(super().process_cca())
+        yield self.process
         if self.skip_next_cot:
             self.selected_number_of_frames_in_a_row = -1
 
@@ -1125,15 +1158,16 @@ class RandomMutingFBE(FBE):
         self.selected_number_of_frames_in_a_row += -1
         super().sent_completed(interrupted_by_simulation_end)
 
+    def __str__(self) -> str:
+        return "(Random-muting FBE) "
+
 
 class FloatingFBE(FBE):
 
-    def __init__(self, name: str, env: simpy.Environment, channel: dataclass, col: str, timers: FBETimers,
-                 run_with_offset=False, offset=0):
-        super().__init__(name, env, channel, col, timers, run_with_offset, offset)
+    def __init__(self, name: str, timers: FBETimers, offset=0):
+        super().__init__(name, timers, offset)
         self.number_of_slots = math.floor(timers.idle_period / timers.observation_slot_time) - 1
         self.pause_time_after_transmission = 0
-        self.env.process(self.start())
 
     def wait_random_time_before_cca(self):
         time_to_wait = select_random_number(self.number_of_slots) * self.timers.observation_slot_time
@@ -1147,7 +1181,7 @@ class FloatingFBE(FBE):
             yield self.env.process(self.fbe_transmission_process())
 
     def fbe_skip_process(self):
-        yield self.env.timeout(self.timers.ffp)
+        yield self.env.timeout(self.timers.cot + self.pause_time_after_transmission)
 
     def fbe_transmission_process(self):
         yield self.env.process(self.backoff_process())
@@ -1168,15 +1202,16 @@ class FloatingFBE(FBE):
         if self.run_with_offset:
             yield self.env.timeout(self.offset)
 
+    def __str__(self) -> str:
+        return "(Floating FBE) "
+
 
 class FixedMutingFBE(FBE):
 
-    def __init__(self, name: str, env: simpy.Environment, channel: dataclass, col: str, timers: FBETimers,
-                 run_with_offset=False, offset=0, max_number_of_muted_periods=1):
-        super().__init__(name, env, channel, col, timers, run_with_offset, offset)
+    def __init__(self, name: str, timers: FBETimers, offset=0, max_number_of_muted_periods=1):
+        super().__init__(name, timers, offset)
         self.muted_periods_to_go = 0
         self.max_number_of_muted_periods = max_number_of_muted_periods
-        self.env.process(self.start())
 
     def start(self):
         yield self.env.process(self.process_init_offset())
@@ -1188,7 +1223,10 @@ class FixedMutingFBE(FBE):
                     log(self,
                         f'Waiting muted periods after successful transmission. Muted periods to go '
                         f'{self.muted_periods_to_go}')
-                    yield self.env.process(self.fbe_skip_process_without_cca())
+                    if self.muted_periods_to_go == 1:
+                        yield self.env.process(self.fbe_skip_process())
+                    else:
+                        yield self.env.process(self.fbe_skip_process_without_cca())
                     self.muted_periods_to_go += -1
                 else:
                     yield self.env.process(self.fbe_transmission_process())
@@ -1200,13 +1238,16 @@ class FixedMutingFBE(FBE):
         super().sent_completed(interrupted_by_simulation_end)
         self.muted_periods_to_go = self.max_number_of_muted_periods
 
+    def __str__(self) -> str:
+        return "(Fixed-muting FBE) "
+
 
 class DeterministicBackoffFBE(FBE):
 
-    def __init__(self, name: str, env: simpy.Environment, channel: dataclass, col: str, timers: FBETimers,
-                 run_with_offset=False, offset=0,
+    def __init__(self, name: str, timers: FBETimers,
+                 offset=0,
                  maximum_number_of_retransmissions=5, init_backoff_value=3, threshold=4):
-        super().__init__(name, env, channel, col, timers, run_with_offset, offset)
+        super().__init__(name, timers, offset)
         self.retransmission_counter = 0
         self.maximum_number_of_retransmissions = maximum_number_of_retransmissions
         self.backoff_counter = 0
@@ -1215,7 +1256,6 @@ class DeterministicBackoffFBE(FBE):
         self.interrupt_counter = 0
         self.drop_frame = False
         self.init_cca = True
-        self.env.process(self.start())
 
     def start(self):
         yield self.env.process(self.process_init_offset())
@@ -1233,12 +1273,15 @@ class DeterministicBackoffFBE(FBE):
             yield self.env.timeout(self.offset)
 
         self.select_backoff()
+        yield from self.process_cca()
 
     def process_cca(self):
-        yield from super().process_cca()
+        self.process = self.env.process(super().process_cca())
+        yield self.process
 
         if self.skip_next_cot:
             self.interrupt_counter += 1
+            log(self, f'Interrupt counter incremented. Actual value: {self.interrupt_counter}')
 
         if self.backoff_counter != 0:
             self.backoff_counter -= 1
@@ -1259,6 +1302,7 @@ class DeterministicBackoffFBE(FBE):
             self.retransmission_counter = 0
             self.interrupt_counter = 0
             self.drop_frame = True
+            self.select_backoff()
 
     def sent_completed(self, interrupted_by_simulation_end=False):
         super().sent_completed(interrupted_by_simulation_end)
@@ -1275,6 +1319,22 @@ class DeterministicBackoffFBE(FBE):
             top_range = self.maximum_number_of_retransmissions - 1
             self.backoff_counter = select_random_number(top_range, bottom_range=0)
         log(self, f'Selected new backoff counter: {self.backoff_counter}')
+
+    def __str__(self) -> str:
+        return "(Deterministic-backoff FBE) "
+
+
+def get_fbe_versions():
+    return [FBEVersion.STANDARD_FBE, FBEVersion.FLOATING_FBE, FBEVersion.FIXED_MUTING_FBE, FBEVersion.RANDOM_MUTING_FBE,
+            FBEVersion.DETERMINISTIC_BACKOFF_FBE]
+
+
+class FBEVersion(Enum):
+    STANDARD_FBE = 1
+    RANDOM_MUTING_FBE = 2
+    FIXED_MUTING_FBE = 3
+    FLOATING_FBE = 4
+    DETERMINISTIC_BACKOFF_FBE = 5
 
 
 # class GnbFBE:
@@ -1460,6 +1520,16 @@ class DeterministicBackoffFBE(FBE):
 #             self.succeeded_transmissions += 1
 #             self.air_time = self.succeeded_transmissions * self.timers.cot
 #         self.channel.succeeded_transmissions_NR_FBE += 1
+class EventType(Enum):
+    SUCCESSFUL_TRANSMISSION = 1
+    CHANNEL_COLLISION = 2
+
+
+@dataclass()
+class Event:
+    station_name: str
+    event_type: EventType
+    event_timestamp: int
 
 
 @dataclass()
@@ -1473,12 +1543,14 @@ class Channel:
     airtime_control: Dict[str, int]
     airtime_data_NR: Dict[str, int]
     airtime_control_NR: Dict[str, int]
+    simulation_time: int
     tx_list: List[Station] = field(default_factory=list)  # transmitting stations in the channel
     back_off_list: List[Station] = field(default_factory=list)  # stations in backoff phase
     tx_list_NR: List[Gnb] = field(default_factory=list)  # transmitting stations in the channel
     tx_list_NR_FBE: List[FBE] = field(default_factory=list)  # transmitting FBE stations in the channel
     back_off_list_NR: List[Gnb] = field(default_factory=list)  # stations in backoff phase
     cca_list_NR_FBE: List[FBE] = field(default_factory=list)
+    event_list: List[Event] = field(default_factory=list)
     # problem list of station objects, what if we 2 differenet station objects???
 
     failed_transmissions: int = 0  # total failed transmissions
@@ -1510,15 +1582,8 @@ def single_run_test(
 
 
 if __name__ == "__main__":
-    '''''
-    single_gnb_test_runs(1, 5000, 250)
-    single_gnb_test_runs(2, 5000, 750)
-    single_gnb_test_runs(3, 5000, 1250)
-    single_gnb_test_runs(4, 5000, 1750)
-    single_gnb_test_runs(5, 5000, 2250)
-    single_gnb_test_runs(6, 5000, 2750)
-    single_gnb_test_runs(7, 5000, 3250)
-    single_gnb_test_runs(8, 5000, 3750)
-    single_gnb_test_runs(9, 5000, 4250)
-    single_gnb_test_runs(10, 5000, 4750)
-    '''''
+    test = ['aa', 'bb', 'cc']
+    test2 = ['aaa', 'bbb', 'ccc']
+    test3 = (test, test2)
+    for x, y in test, test2:
+        print(x + '\t' + y)

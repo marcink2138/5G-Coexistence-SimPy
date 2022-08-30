@@ -1,12 +1,8 @@
-import pandas as pd
-import matplotlib.pyplot as plt
-
-import numpy as np
-import matplotlib as mpl
-from matplotlib import cm
-
 import cycler
-
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 import scipy.stats as st
 
 

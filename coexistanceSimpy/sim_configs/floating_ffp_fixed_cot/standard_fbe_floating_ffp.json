@@ -1,0 +1,20 @@
+{
+  "STANDARD_FBE": [
+    {
+      "name": "GNB_FBE {}",
+      "offset": "0",
+      "cot": "950;1900;2850;3800;4750;5700;6650;7600;8550;9500",
+      "ffp": "1000;2000;3000;4000;5000;6000;7000;8000;9000;10000"
+    }
+  ],
+  "SIMULATION_TIME": "1000000",
+  "PLOT_PARAMS": {
+    "x_axis": "ffp",
+    "y_axis": "normalized_air_time",
+    "title": "Standard FBE with floating FFP",
+    "x_label": "FFP [us]",
+    "y_label": "Normalized Airtime",
+    "file_name": "standard_fbe_floating_ffp_fixed_cot",
+    "folder_name": "floating_ffp_fixed_cot"
+  }
+}

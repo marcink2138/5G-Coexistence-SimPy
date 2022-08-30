@@ -1,0 +1,49 @@
+{
+  "STANDARD_FBE": [
+    {
+      "name": "GNB_FBE {}",
+      "offset": "0",
+      "cot": "5000",
+      "ffp": "10000"
+    }
+  ],
+  "RANDOM_MUTING_FBE": [
+    {
+      "name": "GNB_FBE {}",
+      "offset": "0",
+      "cot": "5000",
+      "ffp": "10000",
+      "max_muted_periods": "5",
+      "max_frames_in_row": "5"
+    }
+  ],
+  "FIXED_MUTING_FBE": [
+    {
+      "name": "GNB_FBE {}",
+      "offset": "0",
+      "cot": "5000",
+      "ffp": "10000",
+      "max_muted_periods": "1"
+    }
+  ],
+  "FLOATING_FBE": [
+    {
+      "name": "GNB_FBE {}",
+      "offset": "0",
+      "cot": "5000",
+      "ffp": "10000"
+    }
+  ],
+  "DETERMINISTIC_BACKOFF_FBE": [
+    {
+      "name": "GNB_FBE {}",
+      "offset": "0",
+      "cot": "5000",
+      "ffp": "10000",
+      "max_retransmissions": "5",
+      "init_backoff": "3",
+      "threshold": "4"
+    }
+  ],
+  "SIMULATION_TIME": "1000000"
+}
