@@ -6,11 +6,13 @@ from PyQt5.QtCore import QThread, pyqtSignal
 from matplotlib import pyplot as plt
 
 import coexistanceSimpy
+from coexistanceSimpy import FBEVersion
 from coexistanceSimpy.scenario_creator_helper import PlotParams
 from coexistanceSimpy.scenario_creator_helper import get_scenario_directly_from_json
 
 marks = ['o', 'v', 's', 'P', '*', 'x', '+']
 colors = ['r', 'g', 'b', 'c', 'm', 'y', 'k']
+max_ffp = 10000
 
 
 def get_total_run_number(stations_list):
@@ -42,9 +44,14 @@ def collect_results(stations_list, result_dict, simulation_time):
         result_dict["cot"].append(station.timers.cot)
         result_dict["ffp"].append(station.timers.ffp)
         normalized_air_time = round(station.air_time / simulation_time, 2)
+        normalized_ffp = round(station.timers.ffp / max_ffp, 2)
+        normalized_cot = round(station.timers.cot / station.timers.ffp, 2)
         result_dict["normalized_air_time"].append(normalized_air_time)
         result_dict["successful_transmissions"].append(station.succeeded_transmissions)
         result_dict["failed_transmissions"].append(station.failed_transmissions)
+        result_dict["normalized_ffp"].append(normalized_ffp)
+        result_dict["normalized_cot"].append(normalized_cot)
+        result_dict["fbe_version"].append(station.get_fbe_version())
 
 
 def run_simulation(stations_list, simulation_time, debug_fun=None, plot_params=None, is_separate_run=False):
@@ -60,10 +67,13 @@ def runner(simulation_time, stations_list):
     result_dict = {"station_name": [],
                    "air_time": [],
                    "cot": [],
+                   "normalized_cot": [],
                    "ffp": [],
+                   "normalized_ffp": [],
                    "normalized_air_time": [],
                    "successful_transmissions": [],
-                   "failed_transmissions": []}
+                   "failed_transmissions": [],
+                   "fbe_version": []}
     total_run_number = get_total_run_number(stations_list)
     print(f'Total run number: {total_run_number}')
     for run_number in range(total_run_number):
@@ -83,10 +93,13 @@ def separate_runner(stations_list, simulation_time):
     result_dict = {"station_name": [],
                    "air_time": [],
                    "cot": [],
+                   "normalized_cot": [],
                    "ffp": [],
+                   "normalized_ffp": [],
                    "normalized_air_time": [],
                    "successful_transmissions": [],
-                   "failed_transmissions": []}
+                   "failed_transmissions": [],
+                   "fbe_version": []}
     for stations in stations_list:
         print(f'Running stations separately. Current number of stations: {len(stations)}')
         for station in stations:
@@ -114,6 +127,7 @@ def process_results(df, plot_params: PlotParams):
                 i += 1
 
         ax.set(xlabel=x_label, ylabel=y_label, title=plot_params.title)
+        ax.set_ylim(bottom=0)
         plt.tight_layout()
         path_to_save = None
         if plot_params.folder_name is None:
@@ -130,6 +144,13 @@ def process_results(df, plot_params: PlotParams):
         plt.savefig(path_to_save)
         plt.savefig(path_to_save + '.svg')
         plt.close()
+
+
+def plot_fairness(df: pd.DataFrame, plot_params: PlotParams):
+    axis_label_zip = get_axis_label_zip(plot_params)
+    i = 0
+    for key, grp in df.groupby(["fbe_version"]):
+        ax = grp.plot(ax=ax, marker=marks)
 
 
 def get_axis_label_zip(plot_params: PlotParams):
@@ -173,3 +194,24 @@ class SimulationRunnerWorker(QThread):
     def set_simulation_params(self, stations_list, simulation_time):
         self.stations_list = stations_list
         self.simulation_time = simulation_time
+
+
+if __name__ == '__main__':
+    result_dict = {"station_name": ['name', 'name2'],
+                   "air_time": [1, 2],
+                   "cot": [1, 2],
+                   "normalized_cot": [1, 2],
+                   "ffp": [1, 2],
+                   "normalized_ffp": [1, 2],
+                   "normalized_air_time": [1, 2],
+                   "successful_transmissions": [1, 2],
+                   "failed_transmissions": [1, 2],
+                   "fbe_version": [FBEVersion.STANDARD_FBE, FBEVersion.STANDARD_FBE]}
+    df = pd.DataFrame.from_dict(result_dict)
+    df = df.groupby(["fbe_version", "air_time"])
+    dicst = {}
+    for key, grp in df:
+        print(key)
+        dicst[key] = grp.to_dict()
+
+    print(dicst)

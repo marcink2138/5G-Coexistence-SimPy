@@ -5,8 +5,8 @@ import random
 from abc import abstractmethod, ABC
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List
 from enum import Enum
+from typing import Dict, List
 
 import simpy
 
@@ -970,6 +970,10 @@ class FBE(ABC):
     def start(self):
         pass
 
+    @abstractmethod
+    def get_fbe_version(self):
+        pass
+
     def set_environment(self, env):
         self.env = env
         self.env.process(self.start())
@@ -1102,6 +1106,9 @@ class StandardFBE(FBE):
             else:
                 yield self.env.process(self.fbe_transmission_process())
 
+    def get_fbe_version(self):
+        return FBEVersion.STANDARD_FBE
+
     def __str__(self) -> str:
         return "(Standard FBE) "
 
@@ -1158,6 +1165,9 @@ class RandomMutingFBE(FBE):
         self.selected_number_of_frames_in_a_row += -1
         super().sent_completed(interrupted_by_simulation_end)
 
+    def get_fbe_version(self):
+        return FBEVersion.RANDOM_MUTING_FBE
+
     def __str__(self) -> str:
         return "(Random-muting FBE) "
 
@@ -1202,6 +1212,9 @@ class FloatingFBE(FBE):
         if self.run_with_offset:
             yield self.env.timeout(self.offset)
 
+    def get_fbe_version(self):
+        return FBEVersion.FLOATING_FBE
+
     def __str__(self) -> str:
         return "(Floating FBE) "
 
@@ -1238,6 +1251,9 @@ class FixedMutingFBE(FBE):
         super().sent_completed(interrupted_by_simulation_end)
         self.muted_periods_to_go = self.max_number_of_muted_periods
 
+    def get_fbe_version(self):
+        return FBEVersion.FIXED_MUTING_FBE
+
     def __str__(self) -> str:
         return "(Fixed-muting FBE) "
 
@@ -1256,6 +1272,9 @@ class DeterministicBackoffFBE(FBE):
         self.interrupt_counter = 0
         self.drop_frame = False
         self.init_cca = True
+        self.backoff_change_dict = {"time": [],
+                                    "backoff_value": []
+                                    }
 
     def start(self):
         yield self.env.process(self.process_init_offset())
@@ -1319,6 +1338,15 @@ class DeterministicBackoffFBE(FBE):
             top_range = self.maximum_number_of_retransmissions - 1
             self.backoff_counter = select_random_number(top_range, bottom_range=0)
         log(self, f'Selected new backoff counter: {self.backoff_counter}')
+        self.add_backoff_to_dict()
+
+    def add_backoff_to_dict(self):
+        time = self.env.now
+        self.backoff_change_dict["time"].append(time)
+        self.backoff_change_dict["backoff_value"].append(self.backoff_counter)
+
+    def get_fbe_version(self):
+        return FBEVersion.DETERMINISTIC_BACKOFF_FBE
 
     def __str__(self) -> str:
         return "(Deterministic-backoff FBE) "
