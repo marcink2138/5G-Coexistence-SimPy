@@ -6,7 +6,8 @@
       "cot": "250;750;1250;1750;2250;2750;3250;3750;4250;4750",
       "ffp": "5000",
       "max_muted_periods": "1"
-    },{
+    },
+    {
       "name": "GNB_FBE {}",
       "offset": "125;375;625;875;1125;1375;1625;1875;2125;2375",
       "cot": "250;750;1250;1750;2250;2750;3250;3750;4250;4750",
@@ -16,12 +17,14 @@
   ],
   "SIMULATION_TIME": "1000000",
   "PLOT_PARAMS": {
-    "x_axis": "cot",
-    "y_axis": "air_time;successful_transmissions",
-    "title": "Fixed-muting FBE Test",
-    "x_label": "COT [us]",
-    "y_label": "Airtime [us];Successful Transmissions",
+    "folder_name": "fixed_muting_fbe_test_v2",
     "file_name": "fixed_muting_fbe_test",
-    "folder_name": "fixed_muting_fbe_test"
+    "all_in_one": {
+      "x_axis": "normalized_cot",
+      "y_axis": "normalized_air_time;successful_transmissions",
+      "title": "Fixed-muting FBE Test",
+      "x_label": "Normalized cot",
+      "y_label": "Normalized airtime;Successful transmissions"
+    }
   }
 }

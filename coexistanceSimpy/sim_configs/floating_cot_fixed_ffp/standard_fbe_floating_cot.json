@@ -9,12 +9,14 @@
   ],
   "SIMULATION_TIME": "1000000",
   "PLOT_PARAMS": {
-    "x_axis": "cot",
-    "y_axis": "air_time",
-    "title": "Standard FBE with floating COT",
-    "x_label": "COT [us]",
-    "y_label": "Airtime [us]",
+    "all_in_one": {
+      "x_axis": "normalized_cot",
+      "y_axis": "normalized_air_time",
+      "title": "Standard FBE",
+      "x_label": "Normalized cot",
+      "y_label": "Normalized airtime"
+    },
     "file_name": "standard_fbe_floating_cot_fixed_ffp",
-    "folder_name": "floating_cot_fixed_ffp"
+    "folder_name": "floating_cot_fixed_ffp_v2"
   }
 }

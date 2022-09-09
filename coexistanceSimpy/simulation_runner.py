@@ -4,6 +4,7 @@ import pandas as pd
 import simpy
 from PyQt5.QtCore import QThread, pyqtSignal
 from matplotlib import pyplot as plt
+from tabulate import tabulate
 
 import coexistanceSimpy
 from coexistanceSimpy import FBEVersion
@@ -38,6 +39,13 @@ def set_env_channel(stations_list, env, channel):
 
 
 def collect_results(stations_list, result_dict, simulation_time):
+    standard_fbe_stations = []
+    fixed_muting_fbe_stations = []
+    random_muting_fbe_stations = []
+    floating_fbe_stations = []
+    db_fbe_stations = []
+    group_stations_by_version(db_fbe_stations, fixed_muting_fbe_stations, floating_fbe_stations,
+                              random_muting_fbe_stations, standard_fbe_stations, stations_list)
     for station in stations_list:
         result_dict["station_name"].append(station.name)
         result_dict["air_time"].append(station.air_time)
@@ -52,6 +60,58 @@ def collect_results(stations_list, result_dict, simulation_time):
         result_dict["normalized_ffp"].append(normalized_ffp)
         result_dict["normalized_cot"].append(normalized_cot)
         result_dict["fbe_version"].append(station.get_fbe_version())
+        fairness, summary_air_time = calculate_fairness_and_summary_air_time_wrapper(station.get_fbe_version(),
+                                                                                     db_fbe_stations,
+                                                                                     fixed_muting_fbe_stations,
+                                                                                     floating_fbe_stations,
+                                                                                     random_muting_fbe_stations,
+                                                                                     standard_fbe_stations)
+        result_dict["fairness"].append(fairness)
+        result_dict["summary_air_time"].append(summary_air_time)
+
+
+def calculate_fairness_and_summary_air_time_wrapper(fbe_version, db_fbe_stations, fixed_muting_fbe_stations,
+                                                    floating_fbe_stations,
+                                                    random_muting_fbe_stations, standard_fbe_stations):
+    if fbe_version == FBEVersion.STANDARD_FBE:
+        return calculate_fairness_and_summary_air_time(standard_fbe_stations)
+    elif fbe_version == FBEVersion.FIXED_MUTING_FBE:
+        return calculate_fairness_and_summary_air_time(fixed_muting_fbe_stations)
+    elif fbe_version == FBEVersion.RANDOM_MUTING_FBE:
+        return calculate_fairness_and_summary_air_time(random_muting_fbe_stations)
+    elif fbe_version == FBEVersion.FLOATING_FBE:
+        return calculate_fairness_and_summary_air_time(floating_fbe_stations)
+    elif fbe_version == FBEVersion.DETERMINISTIC_BACKOFF_FBE:
+        return calculate_fairness_and_summary_air_time(db_fbe_stations)
+
+
+def calculate_fairness_and_summary_air_time(grouped_stations):
+    fairness_nominator = 0
+    fairness_denominator = 0
+    summary_air_time = 0
+    n = 0
+    for stations in grouped_stations:
+        summary_air_time += stations.air_time
+        fairness_nominator += stations.air_time
+        fairness_denominator += stations.air_time ** 2
+        n += 1
+    fairness = round((fairness_nominator ** 2) / (n * fairness_denominator), 4)
+    return fairness, summary_air_time
+
+
+def group_stations_by_version(db_fbe_stations, fixed_muting_fbe_stations, floating_fbe_stations,
+                              random_muting_fbe_stations, standard_fbe_stations, stations_list):
+    for station in stations_list:
+        if station.get_fbe_version() == FBEVersion.STANDARD_FBE:
+            standard_fbe_stations.append(station)
+        elif station.get_fbe_version() == FBEVersion.FIXED_MUTING_FBE:
+            fixed_muting_fbe_stations.append(station)
+        elif station.get_fbe_version() == FBEVersion.RANDOM_MUTING_FBE:
+            random_muting_fbe_stations.append(station)
+        elif station.get_fbe_version() == FBEVersion.FLOATING_FBE:
+            floating_fbe_stations.append(station)
+        elif station.get_fbe_version() == FBEVersion.DETERMINISTIC_BACKOFF_FBE:
+            db_fbe_stations.append(station)
 
 
 def run_simulation(stations_list, simulation_time, debug_fun=None, plot_params=None, is_separate_run=False):
@@ -73,7 +133,9 @@ def runner(simulation_time, stations_list):
                    "normalized_air_time": [],
                    "successful_transmissions": [],
                    "failed_transmissions": [],
-                   "fbe_version": []}
+                   "fbe_version": [],
+                   "fairness": [],
+                   "summary_air_time": []}
     total_run_number = get_total_run_number(stations_list)
     print(f'Total run number: {total_run_number}')
     for run_number in range(total_run_number):
@@ -99,7 +161,9 @@ def separate_runner(stations_list, simulation_time):
                    "normalized_air_time": [],
                    "successful_transmissions": [],
                    "failed_transmissions": [],
-                   "fbe_version": []}
+                   "fbe_version": [],
+                   "fairness": [],
+                   "summary_air_time": []}
     for stations in stations_list:
         print(f'Running stations separately. Current number of stations: {len(stations)}')
         for station in stations:
@@ -114,43 +178,151 @@ def separate_runner(stations_list, simulation_time):
     return result_dict
 
 
+# def process_results(df, plot_params: PlotParams):
+#     axis_label_zip, multiple_plots = get_axis_label_zip(plot_params)
+#     for x_axis, y_axis, x_label, y_label in axis_label_zip:
+#         fig, ax = plt.subplots()
+#         i = 0
+#         if x_axis == 'station_name':
+#             ax = df.plot(ax=ax, kind='bar', x=x_axis, y=y_axis)
+#         else:
+#             for key, grp in df.groupby(["station_name"]):
+#                 ax = grp.plot(ax=ax, marker=marks[i], x=x_axis, y=y_axis, label=key, c=colors[i])
+#                 i += 1
+#
+#         ax.set(xlabel=x_label, ylabel=y_label, title=plot_params.title)
+#         ax.set_ylim(bottom=0)
+#         plt.tight_layout()
+#         path_to_save = None
+#         if plot_params.folder_name is None:
+#             path_to_save = os.getcwd() + '/val_output/images/'
+#         else:
+#             path_to_save = os.getcwd() + f'/val_output/images/{plot_params.folder_name}'
+#             if not os.path.exists(path_to_save):
+#                 os.makedirs(path_to_save)
+#             path_to_save += '/'
+#         if multiple_plots:
+#             path_to_save += plot_params.file_name + f'_{x_axis}_{y_axis}'
+#         else:
+#             path_to_save += plot_params.file_name
+#         plt.savefig(path_to_save)
+#         plt.savefig(path_to_save + '.svg')
+#         plt.close()
+
 def process_results(df, plot_params: PlotParams):
-    axis_label_zip, multiple_plots = get_axis_label_zip(plot_params)
-    for x_axis, y_axis, x_label, y_label in axis_label_zip:
+    df.to_csv('out.csv')
+    if plot_params.all_in_one is not None:
+        plot_all_in_one(df, plot_params)
+    if plot_params.fairness is not None:
+        plot_fairness(df, plot_params)
+    if plot_params.summary_airtime is not None:
+        plot_summary_airtime(df, plot_params)
+    if plot_params.separate_plots is not None:
+        plot_separate(df, plot_params)
+
+
+def plot_separate(df: pd.DataFrame, plot_params: PlotParams):
+    axis_label_zip = zip_plot_params(plot_params.all_in_one["x_axis"], plot_params.all_in_one["x_label"],
+                                     plot_params.all_in_one["y_axis"], plot_params.all_in_one["y_label"])
+    plot_num = 0
+    for x_axis, x_label, y_axis, y_label in axis_label_zip:
+
+        for key, grp in df.groupby(["station_name"]):
+            ax = grp.plot(marker=marks[0], x=x_axis, y=y_axis, label=key, c=colors[0])
+            ax.set(xlabel=x_label, ylabel=y_label, title=plot_params.all_in_one["title"])
+            ax.set_ylim(bottom=0)
+            plt.tight_layout()
+            save_plot(plot_params, f"{key}", plot_num)
+        plot_num += 1
+
+
+def plot_all_in_one(df: pd.DataFrame, plot_params: PlotParams):
+    axis_label_zip = zip_plot_params(plot_params.all_in_one["x_axis"], plot_params.all_in_one["x_label"],
+                                     plot_params.all_in_one["y_axis"], plot_params.all_in_one["y_label"])
+    plot_num = 0
+    for x_axis, x_label, y_axis, y_label in axis_label_zip:
         fig, ax = plt.subplots()
         i = 0
-        if x_axis == 'station_name':
-            ax = df.plot(ax=ax, kind='bar', x=x_axis, y=y_axis)
-        else:
-            for key, grp in df.groupby(["station_name"]):
-                ax = grp.plot(ax=ax, marker=marks[i], x=x_axis, y=y_axis, label=key, c=colors[i])
-                i += 1
 
-        ax.set(xlabel=x_label, ylabel=y_label, title=plot_params.title)
+        for key, grp in df.groupby(["station_name"]):
+            ax = grp.plot(ax=ax, marker=marks[i], x=x_axis, y=y_axis, label=key, c=colors[i])
+            i += 1
+
+        ax.set(xlabel=x_label, ylabel=y_label, title=plot_params.all_in_one["title"])
         ax.set_ylim(bottom=0)
         plt.tight_layout()
-        path_to_save = None
-        if plot_params.folder_name is None:
-            path_to_save = os.getcwd() + '/val_output/images/'
-        else:
-            path_to_save = os.getcwd() + f'/val_output/images/{plot_params.folder_name}'
-            if not os.path.exists(path_to_save):
-                os.makedirs(path_to_save)
-            path_to_save += '/'
-        if multiple_plots:
-            path_to_save += plot_params.file_name + f'_{x_axis}_{y_axis}'
-        else:
-            path_to_save += plot_params.file_name
-        plt.savefig(path_to_save)
-        plt.savefig(path_to_save + '.svg')
-        plt.close()
+        save_plot(plot_params, "all_in_one", plot_num)
+        plot_num += 1
 
 
 def plot_fairness(df: pd.DataFrame, plot_params: PlotParams):
-    axis_label_zip = get_axis_label_zip(plot_params)
-    i = 0
-    for key, grp in df.groupby(["fbe_version"]):
-        ax = grp.plot(ax=ax, marker=marks)
+    x_axis_label_zip = zip_plot_params(plot_params.fairness["x_axis"], plot_params.fairness["x_label"])
+    plot_num = 0
+    for x_axis, x_label in x_axis_label_zip:
+        fig, ax = plt.subplots()
+        i = 0
+        for key, grp in df.groupby(["fbe_version"]):
+            ax = grp.plot(ax=ax, marker=marks[i], x=x_axis, y='fairness', label=key, c=colors[i])
+            i += 1
+        ax.set(xlabel=x_label, ylabel='Fairness', title=plot_params.fairness["title"])
+        ax.set_ylim(bottom=0)
+        plt.tight_layout()
+        save_plot(plot_params, "fairness", plot_num)
+        plot_num += 1
+
+
+def plot_summary_airtime(df: pd.DataFrame, plot_params: PlotParams):
+    x_axis_label_zip = zip_plot_params(plot_params.summary_airtime["x_axis"], plot_params.summary_airtime["x_label"])
+    plot_num = 0
+    for x_axis, x_label in x_axis_label_zip:
+        fig, ax = plt.subplots()
+        i = 0
+        for key, grp in df.groupby(["fbe_version"]):
+            ax = grp.plot(ax=ax, marker=marks[i], x=x_axis, y='summary_air_time', label=key, c=colors[i])
+            i += 1
+        ax.set(xlabel=x_label, ylabel='Summary Airtime', title=plot_params.fairness["title"])
+        ax.set_ylim(bottom=0)
+        plt.tight_layout()
+        save_plot(plot_params, "summary_airtime", plot_num)
+        plot_num += 1
+
+
+def save_plot(plot_params: PlotParams, plot_type, plot_num):
+    path_to_save = None
+    if plot_params.folder_name is None:
+        path_to_save = os.getcwd() + '/val_output/images/'
+    else:
+        path_to_save = os.getcwd() + f'/val_output/images/{plot_params.folder_name}'
+        if not os.path.exists(path_to_save):
+            os.makedirs(path_to_save)
+        path_to_save += '/'
+    if plot_num > 0:
+        path_to_save += plot_params.file_name + "_" + plot_type + "_" + plot_num
+    else:
+        path_to_save += plot_params.file_name + "_" + plot_type
+    plt.savefig(path_to_save)
+    plt.savefig(path_to_save + '.svg')
+    plt.savefig(path_to_save + '.png')
+    plt.close()
+
+
+def zip_plot_params(*params):
+    max_size = 0
+    params_outer_list = []
+    for param in params:
+        params_list = param.split(';')
+        params_list_len = len(params_list)
+        if params_list_len > max_size:
+            max_size = params_list_len
+        params_outer_list.append(params_list)
+
+    for params_list in params_outer_list:
+        if len(params_list) < max_size:
+            last_value = params_list[-1]
+            for i in range(max_size - len(params_list)):
+                params_list.append(last_value)
+
+    return zip(*params_outer_list)
 
 
 def get_axis_label_zip(plot_params: PlotParams):
@@ -197,21 +369,6 @@ class SimulationRunnerWorker(QThread):
 
 
 if __name__ == '__main__':
-    result_dict = {"station_name": ['name', 'name2'],
-                   "air_time": [1, 2],
-                   "cot": [1, 2],
-                   "normalized_cot": [1, 2],
-                   "ffp": [1, 2],
-                   "normalized_ffp": [1, 2],
-                   "normalized_air_time": [1, 2],
-                   "successful_transmissions": [1, 2],
-                   "failed_transmissions": [1, 2],
-                   "fbe_version": [FBEVersion.STANDARD_FBE, FBEVersion.STANDARD_FBE]}
-    df = pd.DataFrame.from_dict(result_dict)
-    df = df.groupby(["fbe_version", "air_time"])
-    dicst = {}
-    for key, grp in df:
-        print(key)
-        dicst[key] = grp.to_dict()
-
-    print(dicst)
+    a = 10 ** 100
+    b = 10**90
+    print(a/b)

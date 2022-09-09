@@ -31,12 +31,24 @@
   ],
   "SIMULATION_TIME": "1000000",
   "PLOT_PARAMS": {
-    "x_axis": "cot",
-    "y_axis": "air_time",
-    "title": "Fixed-muting FBE",
-    "x_label": "COT [us]",
-    "y_label": "Airtime [us]",
+    "all_in_one": {
+      "x_axis": "normalized_cot",
+      "y_axis": "normalized_air_time",
+      "title": "Fixed-muting FBE",
+      "x_label": "Normalized cot",
+      "y_label": "Normalized airtime"
+    },
+    "fairness": {
+      "x_axis": "normalized_cot",
+      "title": "Fairness",
+      "x_label": "Normalized cot"
+    },
+    "summary_airtime": {
+      "x_axis": "normalized_cot",
+      "title": "Summary airtime",
+      "x_label": "Normalized cot"
+    },
     "file_name": "fixed_muting_fbe",
-    "folder_name": "four_stations_no_offset"
+    "folder_name": "four_stations_no_offset_v2"
   }
 }

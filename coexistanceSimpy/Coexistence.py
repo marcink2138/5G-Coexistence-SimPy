@@ -1342,8 +1342,9 @@ class DeterministicBackoffFBE(FBE):
 
     def add_backoff_to_dict(self):
         time = self.env.now
-        self.backoff_change_dict["time"].append(time)
-        self.backoff_change_dict["backoff_value"].append(self.backoff_counter)
+        self.channel.db_fbe_backoff_change_dict["time"].append(time)
+        self.channel.db_fbe_backoff_change_dict["backoff"].append(self.backoff_counter)
+        self.channel.db_fbe_backoff_change_dict["station_name"].append(self.name)
 
     def get_fbe_version(self):
         return FBEVersion.DETERMINISTIC_BACKOFF_FBE
@@ -1581,6 +1582,7 @@ class Channel:
     event_list: List[Event] = field(default_factory=list)
     # problem list of station objects, what if we 2 differenet station objects???
 
+    db_fbe_backoff_change_dict: dict = field(default_factory=lambda: {"time": [], "backoff": [], "station_name": []})
     failed_transmissions: int = 0  # total failed transmissions
     succeeded_transmissions: int = 0  # total succeeded transmissions
     bytes_sent: int = 0  # total bytes sent

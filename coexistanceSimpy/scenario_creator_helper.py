@@ -279,13 +279,12 @@ class DeterministicBackoffFBEJsonParams(StandardFBEJsonParams):
 
 @dataclass
 class PlotParams:
-    x_axis: str
-    y_axis: str
-    title: str
-    x_label: str
-    y_label: str
-    file_name: str
     folder_name: str
+    file_name:str
+    all_in_one: dict
+    fairness: dict
+    summary_airtime: dict
+    separate_plots: dict
 
 
 if __name__ == '__main__':

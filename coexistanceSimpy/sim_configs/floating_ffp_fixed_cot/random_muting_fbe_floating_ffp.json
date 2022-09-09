@@ -11,12 +11,14 @@
   ],
   "SIMULATION_TIME": "1000000",
   "PLOT_PARAMS": {
-    "x_axis": "ffp",
-    "y_axis": "normalized_air_time",
-    "title": "Random-muting FBE with floating FFP",
-    "x_label": "FFP [us]",
-    "y_label": "Normalized Airtime",
+    "all_in_one": {
+      "x_axis": "normalized_ffp",
+      "y_axis": "normalized_air_time",
+      "title": "Random-muting FBE",
+      "x_label": "Normalized FFP",
+      "y_label": "Normalized airtime"
+    },
     "file_name": "random_muting_fbe_floating_ffp_fixed_cot",
-    "folder_name": "floating_ffp_fixed_cot"
+    "folder_name": "floating_ffp_fixed_cot_v2"
   }
 }
