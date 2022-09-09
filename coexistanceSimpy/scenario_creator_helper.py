@@ -167,9 +167,21 @@ def get_scenario_directly_from_json(json_path):
                                                     db_fbe_json_list)
     simulation_time = int(j["SIMULATION_TIME"]) if "SIMULATION_TIME" in j else 1000000
     plot_params_json = j["PLOT_PARAMS"] if "PLOT_PARAMS" in j else None
-    plot_params = PlotParams(**plot_params_json)
+    plot_params = build_plot_params_obj(plot_params_json)
     is_separate_run = j["RUN_SEPARATELY"] if "RUN_SEPARATELY" in j else False
     return station_list, simulation_time, plot_params, is_separate_run
+
+
+def build_plot_params_obj(plot_params_json):
+    if plot_params_json is None:
+        return None
+    folder_name = plot_params_json.get("folder_name")
+    file_name = plot_params_json.get("file_name")
+    all_in_one = plot_params_json.get("all_in_one")
+    fairness = plot_params_json.get("fairness")
+    summary_airtime = plot_params_json.get("summary_airtime")
+    separate_plots = plot_params_json.get("separate_plots")
+    return PlotParams(folder_name, file_name, all_in_one, fairness, summary_airtime, separate_plots)
 
 
 def get_standard_fbe_from_json_list(standard_fbe_json_list, stations_list):
@@ -280,7 +292,7 @@ class DeterministicBackoffFBEJsonParams(StandardFBEJsonParams):
 @dataclass
 class PlotParams:
     folder_name: str
-    file_name:str
+    file_name: str
     all_in_one: dict
     fairness: dict
     summary_airtime: dict

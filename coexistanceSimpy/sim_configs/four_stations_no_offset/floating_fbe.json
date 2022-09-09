@@ -27,6 +27,8 @@
   ],
   "SIMULATION_TIME": "1000000",
   "PLOT_PARAMS": {
+    "file_name": "floating_fbe",
+    "folder_name": "four_stations_no_offset_v2",
     "all_in_one": {
       "x_axis": "normalized_cot",
       "y_axis": "normalized_air_time",
@@ -43,8 +45,6 @@
       "x_axis": "normalized_cot",
       "title": "Summary airtime",
       "x_label": "Normalized cot"
-    },
-    "file_name": "floating_fbe",
-    "folder_name": "four_stations_no_offset_v2"
+    }
   }
 }

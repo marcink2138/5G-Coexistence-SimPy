@@ -1050,10 +1050,14 @@ class FBE(ABC):
 
     def sent_failed(self):
         log(self, f"Transmission failed")
-        event = Event(self.name, EventType.CHANNEL_COLLISION, self.env.now)
-        self.channel.event_list.append(event)
+        self.add_event_to_dict(EventType.CHANNEL_COLLISION.name)
         self.failed_transmissions += 1
         self.channel.failed_transmissions_NR_FBE += 1
+
+    def add_event_to_dict(self, event_type):
+        self.channel.event_dict["time"].append(self.env.now)
+        self.channel.event_dict["station_name"].append(self.name)
+        self.channel.event_dict["event_type"].append(event_type)
 
     def fbe_skip_process(self):
         yield self.env.process(self.skip_cot())
@@ -1070,8 +1074,7 @@ class FBE(ABC):
 
     def sent_completed(self, interrupted_by_simulation_end=False):
         log(self, f"Successfully sent transmission")
-        event = Event(self.name, EventType.SUCCESSFUL_TRANSMISSION, self.env.now)
-        self.channel.event_list.append(event)
+        self.add_event_to_dict(EventType.SUCCESSFUL_TRANSMISSION.name)
         if interrupted_by_simulation_end:
             self.air_time = self.succeeded_transmissions * self.timers.cot + self.channel.simulation_time - self.env.now
             self.succeeded_transmissions += 1
@@ -1579,7 +1582,7 @@ class Channel:
     tx_list_NR_FBE: List[FBE] = field(default_factory=list)  # transmitting FBE stations in the channel
     back_off_list_NR: List[Gnb] = field(default_factory=list)  # stations in backoff phase
     cca_list_NR_FBE: List[FBE] = field(default_factory=list)
-    event_list: List[Event] = field(default_factory=list)
+    event_dict: dict = field(default_factory=lambda: {"time": [], "station_name": [], "event_type": []})
     # problem list of station objects, what if we 2 differenet station objects???
 
     db_fbe_backoff_change_dict: dict = field(default_factory=lambda: {"time": [], "backoff": [], "station_name": []})

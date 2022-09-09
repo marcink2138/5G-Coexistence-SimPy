@@ -47,15 +47,15 @@
   ],
   "SIMULATION_TIME": "1000000",
   "PLOT_PARAMS": {
+    "file_name": "all_in_one",
+    "folder_name": "floating_cot_fixed_ffp_v2",
     "all_in_one": {
       "x_axis": "normalized_cot",
       "y_axis": "normalized_air_time",
       "title": "FBE stations with floating COT",
       "x_label": "Normalized cot",
       "y_label": "Normalized airtime"
-    },
-    "file_name": "all_in_one",
-    "folder_name": "floating_cot_fixed_ffp_v2"
+    }
   },
   "RUN_SEPARATELY": true
 }

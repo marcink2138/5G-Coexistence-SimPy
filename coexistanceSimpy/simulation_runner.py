@@ -4,7 +4,6 @@ import pandas as pd
 import simpy
 from PyQt5.QtCore import QThread, pyqtSignal
 from matplotlib import pyplot as plt
-from tabulate import tabulate
 
 import coexistanceSimpy
 from coexistanceSimpy import FBEVersion
@@ -95,7 +94,9 @@ def calculate_fairness_and_summary_air_time(grouped_stations):
         fairness_nominator += stations.air_time
         fairness_denominator += stations.air_time ** 2
         n += 1
-    fairness = round((fairness_nominator ** 2) / (n * fairness_denominator), 4)
+    fairness = 0
+    if fairness_denominator != 0:
+        fairness = round((fairness_nominator ** 2) / (n * fairness_denominator), 4)
     return fairness, summary_air_time
 
 
@@ -115,12 +116,28 @@ def group_stations_by_version(db_fbe_stations, fixed_muting_fbe_stations, floati
 
 
 def run_simulation(stations_list, simulation_time, debug_fun=None, plot_params=None, is_separate_run=False):
-    result_dict = runner(simulation_time, stations_list) if not is_separate_run else separate_runner(stations_list,
-                                                                                                     simulation_time)
+    result_dict, event_dict_list, db_fbe_backoff_changes_dict_list = runner(simulation_time, stations_list) \
+        if not is_separate_run else separate_runner(stations_list, simulation_time)
+
     df = pd.DataFrame.from_dict(result_dict)
-    print(df)
     if plot_params is not None:
         process_results(df, plot_params)
+        path_to_folder = get_path_to_folder(plot_params)
+        df.to_csv(path_to_folder + plot_params.file_name + "_df.csv")
+        events_df = merge_dicts_into_df(event_dict_list)
+        events_df.to_csv(path_to_folder + plot_params.file_name + "_events.csv")
+        db_fbe_backoff_changes_df = merge_dicts_into_df(db_fbe_backoff_changes_dict_list)
+        db_fbe_backoff_changes_df.to_csv(path_to_folder + plot_params.file_name + "_db_fbe_backoff.csv")
+
+
+def merge_dicts_into_df(dict_list):
+    df = None
+    for result_dict in dict_list:
+        if df is None:
+            df = pd.DataFrame.from_dict(result_dict)
+        else:
+            df = pd.concat([df, pd.DataFrame.from_dict(result_dict)])
+    return df
 
 
 def runner(simulation_time, stations_list):
@@ -136,6 +153,8 @@ def runner(simulation_time, stations_list):
                    "fbe_version": [],
                    "fairness": [],
                    "summary_air_time": []}
+    event_dict_list = []
+    db_fbe_backoff_changes_dict_list = []
     total_run_number = get_total_run_number(stations_list)
     print(f'Total run number: {total_run_number}')
     for run_number in range(total_run_number):
@@ -148,7 +167,9 @@ def runner(simulation_time, stations_list):
         env.run(until=simulation_time)
         collect_results(current_run_stations_list, result_dict, simulation_time)
         current_run_stations_list.clear()
-    return result_dict
+        event_dict_list.append(channel.event_dict)
+        db_fbe_backoff_changes_dict_list.append(channel.db_fbe_backoff_change_dict)
+    return result_dict, event_dict_list, db_fbe_backoff_changes_dict_list
 
 
 def separate_runner(stations_list, simulation_time):
@@ -164,6 +185,8 @@ def separate_runner(stations_list, simulation_time):
                    "fbe_version": [],
                    "fairness": [],
                    "summary_air_time": []}
+    event_dict_list = []
+    db_fbe_backoff_changes_dict_list = []
     for stations in stations_list:
         print(f'Running stations separately. Current number of stations: {len(stations)}')
         for station in stations:
@@ -174,8 +197,10 @@ def separate_runner(stations_list, simulation_time):
                                                simulation_time)
             set_env_channel([station], env, channel)
             env.run(until=simulation_time)
+            event_dict_list.append(channel.event_dict)
+            db_fbe_backoff_changes_dict_list.append(channel.db_fbe_backoff_change_dict)
         collect_results(stations, result_dict, simulation_time)
-    return result_dict
+    return result_dict, event_dict_list, db_fbe_backoff_changes_dict_list
 
 
 # def process_results(df, plot_params: PlotParams):
@@ -210,7 +235,6 @@ def separate_runner(stations_list, simulation_time):
 #         plt.close()
 
 def process_results(df, plot_params: PlotParams):
-    df.to_csv('out.csv')
     if plot_params.all_in_one is not None:
         plot_all_in_one(df, plot_params)
     if plot_params.fairness is not None:
@@ -230,7 +254,8 @@ def plot_separate(df: pd.DataFrame, plot_params: PlotParams):
         for key, grp in df.groupby(["station_name"]):
             ax = grp.plot(marker=marks[0], x=x_axis, y=y_axis, label=key, c=colors[0])
             ax.set(xlabel=x_label, ylabel=y_label, title=plot_params.all_in_one["title"])
-            ax.set_ylim(bottom=0)
+            if y_axis == "normalized_airtime":
+                ax.set_ylim(bottom=0)
             plt.tight_layout()
             save_plot(plot_params, f"{key}", plot_num)
         plot_num += 1
@@ -249,7 +274,8 @@ def plot_all_in_one(df: pd.DataFrame, plot_params: PlotParams):
             i += 1
 
         ax.set(xlabel=x_label, ylabel=y_label, title=plot_params.all_in_one["title"])
-        ax.set_ylim(bottom=0)
+        if y_axis == "normalized_airtime":
+            ax.set_ylim(bottom=0)
         plt.tight_layout()
         save_plot(plot_params, "all_in_one", plot_num)
         plot_num += 1
@@ -280,24 +306,29 @@ def plot_summary_airtime(df: pd.DataFrame, plot_params: PlotParams):
         for key, grp in df.groupby(["fbe_version"]):
             ax = grp.plot(ax=ax, marker=marks[i], x=x_axis, y='summary_air_time', label=key, c=colors[i])
             i += 1
-        ax.set(xlabel=x_label, ylabel='Summary Airtime', title=plot_params.fairness["title"])
-        ax.set_ylim(bottom=0)
+        ax.set(xlabel=x_label, ylabel='Summary Airtime', title=plot_params.summary_airtime["title"])
         plt.tight_layout()
         save_plot(plot_params, "summary_airtime", plot_num)
         plot_num += 1
 
 
-def save_plot(plot_params: PlotParams, plot_type, plot_num):
-    path_to_save = None
+def get_path_to_folder(plot_params: PlotParams):
+    path_to_folder = None
     if plot_params.folder_name is None:
-        path_to_save = os.getcwd() + '/val_output/images/'
+        path_to_folder = os.getcwd() + '/val_output/images/'
     else:
-        path_to_save = os.getcwd() + f'/val_output/images/{plot_params.folder_name}'
-        if not os.path.exists(path_to_save):
-            os.makedirs(path_to_save)
-        path_to_save += '/'
+        path_to_folder = os.getcwd() + f'/val_output/images/{plot_params.folder_name}'
+        if not os.path.exists(path_to_folder):
+            os.makedirs(path_to_folder)
+        path_to_folder += '/'
+    return path_to_folder
+
+
+def save_plot(plot_params: PlotParams, plot_type, plot_num):
+    path_to_save = get_path_to_folder(plot_params)
+
     if plot_num > 0:
-        path_to_save += plot_params.file_name + "_" + plot_type + "_" + plot_num
+        path_to_save += plot_params.file_name + "_" + plot_type + "_" + str(plot_num)
     else:
         path_to_save += plot_params.file_name + "_" + plot_type
     plt.savefig(path_to_save)
@@ -370,5 +401,5 @@ class SimulationRunnerWorker(QThread):
 
 if __name__ == '__main__':
     a = 10 ** 100
-    b = 10**90
-    print(a/b)
+    b = 10 ** 90
+    print(a / b)
