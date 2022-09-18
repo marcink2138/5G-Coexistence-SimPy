@@ -174,85 +174,76 @@ def get_scenario_directly_from_json(json_path):
     db_fbe_json_list = j[
         FBEVersion.DETERMINISTIC_BACKOFF_FBE.name] if FBEVersion.DETERMINISTIC_BACKOFF_FBE.name in j else []
     simulation_time = int(j["SIMULATION_TIME"]) if "SIMULATION_TIME" in j else 1000000
-    plot_params_json = j["PLOT_PARAMS"] if "PLOT_PARAMS" in j else None
-    plot_params = build_plot_params_obj(plot_params_json)
+    output_params_json = j["OUTPUT_PARAMS"] if "OUTPUT_PARAMS" in j else None
+    output_params = build_output_params_obj(output_params_json)
     is_separate_run = j["RUN_SEPARATELY"] if "RUN_SEPARATELY" in j else False
     scenario_runs = j["SCENARIO_RUNS"] if "SCENARIO_RUNS" in j else 1
-    return simulation_time, plot_params, is_separate_run, scenario_runs
+    return simulation_time, output_params, is_separate_run, scenario_runs
 
 
-def build_plot_params_obj(plot_params_json):
-    if plot_params_json is None:
+def build_output_params_obj(output_params_json):
+    if output_params_json is None:
         return None
-    folder_name = plot_params_json.get("folder_name")
-    file_name = plot_params_json.get("file_name")
-    all_in_one = plot_params_json.get("all_in_one")
-    fairness = plot_params_json.get("fairness")
-    summary_airtime = plot_params_json.get("summary_airtime")
-    separate_plots = plot_params_json.get("separate_plots")
-    return PlotParams(folder_name, file_name, all_in_one, fairness, summary_airtime, separate_plots)
+    folder_name = output_params_json.get("folder_name")
+    file_name = output_params_json.get("file_name")
+    all_in_one = output_params_json.get("all_in_one")
+    fairness = output_params_json.get("fairness")
+    summary_airtime = output_params_json.get("summary_airtime")
+    separate_plots = output_params_json.get("separate_plots")
+    enable_logging = output_params_json["enable_logging"] if "enable_logging" in output_params_json else True
+    return OutputParams(folder_name, file_name, all_in_one, fairness, summary_airtime, separate_plots, enable_logging)
 
 
-def get_standard_fbe_from_json_list(standard_fbe_json_list, stations_list):
-    i = 1
-    for standard_fbe_json in standard_fbe_json_list:
+def get_standard_fbe_from_json_list(stations_list):
+    for i, standard_fbe_json in enumerate(standard_fbe_json_list, start=1):
         params = get_station_params_from_json(standard_fbe_json, FBEVersion.STANDARD_FBE)
         cot_ffp_offset_zip = collect_cot_ffp_offset_zip(params.cot.split(';'), params.ffp.split(';'),
                                                         params.offset.split(';'))
         create_standard_fbe(cot_ffp_offset_zip, params.name.format(i), stations_list)
-        i += 1
 
 
-def get_fixed_muting_fbe_from_json_list(fixed_muting_fbe_json_list, stations_list):
-    i = 1
-    for fixed_muting_fbe_json in fixed_muting_fbe_json_list:
+def get_fixed_muting_fbe_from_json_list(stations_list):
+    for i, fixed_muting_fbe_json in enumerate(fixed_muting_fbe_json_list, start=1):
         params = get_station_params_from_json(fixed_muting_fbe_json, FBEVersion.FIXED_MUTING_FBE)
         cot_ffp_offset_zip = collect_cot_ffp_offset_zip(params.cot.split(';'), params.ffp.split(';'),
                                                         params.offset.split(';'))
         create_fixed_muting_fbe(cot_ffp_offset_zip, params.max_muted_periods, params.name.format(i),
                                 stations_list)
-        i += 1
 
 
-def get_random_muting_fbe_from_json_list(random_muting_fbe_json_list, stations_list):
-    i = 1
-    for random_muting_fbe_json in random_muting_fbe_json_list:
+def get_random_muting_fbe_from_json_list(stations_list):
+    for i, random_muting_fbe_json in enumerate(random_muting_fbe_json_list, start=1):
         params = get_station_params_from_json(random_muting_fbe_json, FBEVersion.RANDOM_MUTING_FBE)
         cot_ffp_offset_zip = collect_cot_ffp_offset_zip(params.cot.split(';'), params.ffp.split(';'),
                                                         params.offset.split(';'))
         create_random_muting_fbe(cot_ffp_offset_zip, params.max_muted_periods, params.max_frames_in_row,
                                  params.name.format(i), stations_list)
-        i += 1
 
 
-def get_floating_fbe_from_json_list(floating_fbe_json_list, stations_list):
-    i = 1
-    for floating_fbe_json in floating_fbe_json_list:
+def get_floating_fbe_from_json_list(stations_list):
+    for i, floating_fbe_json in enumerate(floating_fbe_json_list, start=1):
         params = get_station_params_from_json(floating_fbe_json, FBEVersion.FLOATING_FBE)
         cot_ffp_offset_zip = collect_cot_ffp_offset_zip(params.cot.split(';'), params.ffp.split(';'),
                                                         params.offset.split(';'))
         create_floating_fbe(cot_ffp_offset_zip, params.name.format(i), stations_list)
-        i += 1
 
 
-def get_db_fbe_from_json_list(db_fbe_json_list, stations_list):
-    i = 1
-    for db_fbe_json in db_fbe_json_list:
+def get_db_fbe_from_json_list(stations_list):
+    for i, db_fbe_json in enumerate(db_fbe_json_list, start=1):
         params = get_station_params_from_json(db_fbe_json, FBEVersion.DETERMINISTIC_BACKOFF_FBE)
         cot_ffp_offset_zip = collect_cot_ffp_offset_zip(params.cot.split(';'), params.ffp.split(';'),
                                                         params.offset.split(';'))
         create_db_fbe(cot_ffp_offset_zip, params.init_backoff, params.max_retransmissions, params.name.format(i),
                       stations_list, params.threshold)
-        i += 1
 
 
 def get_station_list_from_json_lists():
     stations_list = []
-    get_standard_fbe_from_json_list(standard_fbe_json_list, stations_list)
-    get_fixed_muting_fbe_from_json_list(fixed_muting_fbe_json_list, stations_list)
-    get_random_muting_fbe_from_json_list(random_muting_fbe_json_list, stations_list)
-    get_floating_fbe_from_json_list(floating_fbe_json_list, stations_list)
-    get_db_fbe_from_json_list(db_fbe_json_list, stations_list)
+    get_standard_fbe_from_json_list(stations_list)
+    get_fixed_muting_fbe_from_json_list(stations_list)
+    get_random_muting_fbe_from_json_list(stations_list)
+    get_floating_fbe_from_json_list(stations_list)
+    get_db_fbe_from_json_list(stations_list)
     return stations_list
 
 
@@ -297,22 +288,11 @@ class DeterministicBackoffFBEJsonParams(StandardFBEJsonParams):
 
 
 @dataclass
-class PlotParams:
+class OutputParams:
     folder_name: str
     file_name: str
     all_in_one: dict
     fairness: dict
     summary_airtime: dict
     separate_plots: dict
-
-
-if __name__ == '__main__':
-    js = {
-        "name": "GNB_FBE {}",
-        "offset": "0",
-        "cot": "250;750;1250;1750;2250;2750;3250;3750;4250;4750",
-        "ffp": "5000"
-    }
-    test = "250;1..20;11..54;1750;2250;2750;3250;3750;4250;4750".split(";")
-    check_for_random_params(test)
-    print(test)
+    enable_logging: bool

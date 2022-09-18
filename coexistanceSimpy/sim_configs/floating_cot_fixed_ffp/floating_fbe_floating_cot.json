@@ -8,7 +8,7 @@
     }
   ],
   "SIMULATION_TIME": "1000000",
-  "PLOT_PARAMS": {
+  "OUTPUT_PARAMS": {
     "file_name": "floating_fbe_floating_cot_fixed_ffp",
     "folder_name": "floating_cot_fixed_ffp_v2",
     "all_in_one": {

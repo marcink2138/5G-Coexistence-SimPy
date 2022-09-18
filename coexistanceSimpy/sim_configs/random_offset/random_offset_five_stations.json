@@ -47,7 +47,7 @@
   ],
   "SIMULATION_TIME": "1000000",
   "SCENARIO_RUNS": 10,
-  "PLOT_PARAMS": {
+  "OUTPUT_PARAMS": {
     "file_name": "random_offset_five_stations",
     "folder_name": "random_offset_v2",
     "all_in_one": {

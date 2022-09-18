@@ -16,9 +16,10 @@
     }
   ],
   "SIMULATION_TIME": "1000000",
-  "PLOT_PARAMS": {
+  "OUTPUT_PARAMS": {
     "folder_name": "fixed_muting_fbe_test_v2",
     "file_name": "fixed_muting_fbe_test",
+    "enable_logging": true,
     "all_in_one": {
       "x_axis": "normalized_cot",
       "y_axis": "normalized_air_time;successful_transmissions",

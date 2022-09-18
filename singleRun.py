@@ -34,7 +34,8 @@ from coexistanceSimpy.Coexistence import *
     "--wifi_r_limit", "wifi_r_limit", default=7, help="Number of failed transmissions in a row",
 )
 @click.option("-m", "--mcs-value", "mcs_value", default=7, help="Value of mcs")
-@click.option("-syn_slot", "--synchronization_slot_duration", default=1000, help="Synchronization slot length in mikrosecounds")
+@click.option("-syn_slot", "--synchronization_slot_duration", default=1000,
+              help="Synchronization slot length in mikrosecounds")
 @click.option("-max_des", "--max_sync_slot_desync", default=1000, help="Max value of gNB desynchronization")
 @click.option("-min_des", "--min_sync_slot_desync", default=0, help="Min value of gNB desynchronization")
 @click.option("-nru_obser_slots", "--nru_observation_slot", default=3, help="amount of observation slots for NR_U")
@@ -68,11 +69,9 @@ def single_run(
         curr_seed = seed + i
         run_simulation(ap_number, gnb_number, curr_seed, simulation_time,
                        Config(1472, wifi_cw_min, wifi_cw_max, wifi_r_limit, mcs_value),
-                       Config_NR(16, 9, synchronization_slot_duration, max_sync_slot_desync, min_sync_slot_desync,  nru_observation_slot, nru_cw_min, nru_cw_max, mcot),
+                       Config_NR(16, 9, synchronization_slot_duration, max_sync_slot_desync, min_sync_slot_desync,
+                                 nru_observation_slot, nru_cw_min, nru_cw_max, mcot),
                        backoffs, airtime_data, airtime_control, airtime_data_NR, airtime_control_NR)
-
-
-
 
 
 if __name__ == "__main__":

@@ -32,7 +32,7 @@
     }
   ],
   "SIMULATION_TIME": "1000000",
-  "PLOT_PARAMS": {
+  "OUTPUT_PARAMS": {
     "folder_name": "floating_fbe_test_v2",
     "file_name": "floating_fbe_test",
     "all_in_one": {

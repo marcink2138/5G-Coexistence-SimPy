@@ -1,11 +1,9 @@
-import logging
 import csv
-import logging
 import os
 import random
+from logger_util import station_log
 from abc import abstractmethod, ABC
 from dataclasses import dataclass, field
-from datetime import datetime
 from enum import Enum
 from typing import Dict, List
 
@@ -14,15 +12,6 @@ import simpy
 from Times import *
 
 output_csv = "output_test.csv"
-file_log_name = f"{datetime.today().strftime('%Y-%m-%d-%H-%M-%S')}.log"
-
-typ_filename = "RS_coex_1sta_1wifi2.log"
-
-logging.basicConfig(filename="",
-                    format='%(asctime)s %(message)s',
-                    filemode='w')
-logger = logging.getLogger()
-logger.setLevel(logging.CRITICAL)  # chose DEBUG to display stats in debug mode :)
 
 colors = [
     "\033[30m",
@@ -75,13 +64,6 @@ def random_sample(max, number, min_distance=0):  # func used to desync gNBs
     return [sample + (min_distance - 1) * rank for sample, rank in zip(samples, ranks)]
 
 
-def log(gnb, mes: str) -> None:
-    pass
-    logger.info(
-        f"Time: {gnb.env.now} Station: {gnb.name} Message: {mes}"
-    )
-
-
 class Station:
     def __init__(
             self,
@@ -122,7 +104,7 @@ class Station:
                 # self.process = None
 
     def wait_back_off(self):
-        #global start
+        # global start
         self.back_off_time = self.generate_new_back_off_time(
             self.failed_transmissions_in_row)  # generating the new Back Off time
 
@@ -131,33 +113,34 @@ class Station:
                 with self.channel.tx_lock.request() as req:  # waiting  for idle channel -- empty channel
                     yield req
                 self.back_off_time += Times.t_difs  # add DIFS time
-                log(self, f"Starting to wait backoff (with DIFS): ({self.back_off_time})u...")
+                station_log(self, f"Starting to wait backoff (with DIFS): ({self.back_off_time})u...")
                 self.first_interrupt = True
                 self.start = self.env.now  # store the current simulation time
                 self.channel.back_off_list.append(self)  # join the list off stations which are waiting Back Offs
 
                 yield self.env.timeout(self.back_off_time)  # join the environment action queue
 
-                log(self, f"Backoff waited, sending frame...")
+                station_log(self, f"Backoff waited, sending frame...")
                 self.back_off_time = -1  # leave the loop
 
                 self.channel.back_off_list.remove(self)  # leave the waiting list as Backoff was waited successfully
 
             except simpy.Interrupt:  # handle the interruptions from transmitting stations
                 if self.first_interrupt and self.start is not None:
-                    #tak jest po mojemu:
-                    log(self, "Waiting was interrupted, waiting to resume backoff...")
+                    # tak jest po mojemu:
+                    station_log(self, "Waiting was interrupted, waiting to resume backoff...")
                     all_waited = self.env.now - self.start
                     if all_waited <= Times.t_difs:
                         self.back_off_time -= Times.t_difs
-                        log(self, f"Interupted in DIFS ({Times.t_difs}), backoff {self.back_off_time}, already waited: {all_waited}")
+                        station_log(self,
+                            f"Interupted in DIFS ({Times.t_difs}), backoff {self.back_off_time}, already waited: {all_waited}")
                     else:
                         back_waited = all_waited - Times.t_difs
                         slot_waited = int(back_waited / Times.t_slot)
                         self.back_off_time -= ((slot_waited * Times.t_slot) + Times.t_difs)
-                        log(self,
+                        station_log(self,
                             f"Completed slots(9us) {slot_waited} = {(slot_waited * Times.t_slot)}  plus DIFS time {Times.t_difs}")
-                        log(self,
+                        station_log(self,
                             f"Backoff decresed by {((slot_waited * Times.t_slot) + Times.t_difs)} new Backoff {self.back_off_time}")
                     self.first_interrupt = False
 
@@ -172,10 +155,8 @@ class Station:
             if res not in result:  # check if this station got lock, if not just wait you frame time
                 raise simpy.Interrupt("There is a longer frame...")
 
-
             with self.channel.tx_lock.request() as lock:  # this station has the longest frame so hold the lock
                 yield lock
-
 
                 for station in self.channel.back_off_list:  # stop all station which are waiting backoff as channel is not idle
                     if station.process.is_alive:
@@ -184,7 +165,7 @@ class Station:
                     if gnb.process.is_alive:
                         gnb.process.interrupt()
 
-                log(self, f'Starting sending frame: {self.frame_to_send.frame_time}')
+                station_log(self, f'Starting sending frame: {self.frame_to_send.frame_time}')
 
                 yield self.env.timeout(self.frame_to_send.frame_time)  # wait this station frame time
                 self.channel.back_off_list.clear()  # channel idle, clear backoff waiting list
@@ -213,10 +194,10 @@ class Station:
         was_sent = self.check_collision()
 
         if was_sent:  # check if collision occurred
-            log(self, f'Waiting for ACK time: {self.times.get_ack_frame_time()}')
+            station_log(self, f'Waiting for ACK time: {self.times.get_ack_frame_time()}')
             yield self.env.timeout(self.times.get_ack_frame_time())  # wait ack
         else:
-            log(self, "waiting ack timeout slave")
+            station_log(self, "waiting ack timeout slave")
             yield self.env.timeout(Times.ack_timeout)  # simulate ack timeout after failed transmission
         return was_sent
 
@@ -245,18 +226,18 @@ class Station:
         return Frame(frame_length, self.name, self.col, self.config.data_size, self.env.now)
 
     def sent_failed(self):
-        log(self, "There was a collision")
+        station_log(self, "There was a collision")
         self.frame_to_send.number_of_retransmissions += 1
         self.channel.failed_transmissions += 1
         self.failed_transmissions += 1
         self.failed_transmissions_in_row += 1
-        log(self, self.channel.failed_transmissions)
+        station_log(self, self.channel.failed_transmissions)
         if self.frame_to_send.number_of_retransmissions > self.config.r_limit:
             self.frame_to_send = self.generate_new_frame()
             self.failed_transmissions_in_row = 0
 
     def sent_completed(self):
-        log(self, f"Successfully sent frame, waiting ack: {self.times.get_ack_frame_time()}")
+        station_log(self, f"Successfully sent frame, waiting ack: {self.times.get_ack_frame_time()}")
         self.frame_to_send.t_end = self.env.now
         self.frame_to_send.t_to_send = (self.frame_to_send.t_end - self.frame_to_send.t_start)
         self.channel.succeeded_transmissions += 1
@@ -333,42 +314,41 @@ class Gnb:
 
                 self.time_to_next_sync_slot = self.next_sync_slot_boundry - self.env.now
 
-                log(self, f'Backoff = {self.back_off_time} , and time to next slot: {self.time_to_next_sync_slot}')
+                station_log(self, f'Backoff = {self.back_off_time} , and time to next slot: {self.time_to_next_sync_slot}')
                 while self.back_off_time >= self.time_to_next_sync_slot:
                     self.time_to_next_sync_slot += self.config_nr.synchronization_slot_duration
-                    log(self,
+                    station_log(self,
                         f'Backoff > time to sync slot: new time to next possible sync +1000 = {self.time_to_next_sync_slot}')
 
                 gap_time = self.time_to_next_sync_slot - self.back_off_time
-                log(self, f"Waiting gap period of : {gap_time} us")
+                station_log(self, f"Waiting gap period of : {gap_time} us")
                 assert gap_time >= 0, "Gap period is < 0!!!"
 
                 yield self.env.timeout(gap_time)
-                log(self, f"Finished gap period")
-
+                station_log(self, f"Finished gap period")
 
                 self.first_interrupt = True
 
                 self.start_nr = self.env.now  # store the current simulation time
 
-                log(self, f'Channels in use by {self.channel.tx_lock.count} stations')
+                station_log(self, f'Channels in use by {self.channel.tx_lock.count} stations')
 
                 # checking if channel if idle
                 if (len(self.channel.tx_list_NR) + len(self.channel.tx_list)) > 0:
-                    log(self, 'Channel busy -- waiting to be free')
+                    station_log(self, 'Channel busy -- waiting to be free')
                     with self.channel.tx_lock.request() as req:
                         yield req
-                    log(self, 'Finished waiting for free channel - restarting backoff procedure')
+                    station_log(self, 'Finished waiting for free channel - restarting backoff procedure')
 
                 else:
-                    log(self, 'Channel free')
-                    log(self, f"Starting to wait backoff: ({self.back_off_time}) us...")
+                    station_log(self, 'Channel free')
+                    station_log(self, f"Starting to wait backoff: ({self.back_off_time}) us...")
                     self.channel.back_off_list_NR.append(self)  # join the list off stations which are waiting Back Offs
                     self.waiting_backoff = True
 
                     yield self.env.timeout(self.back_off_time)  # join the environment action queue
 
-                    log(self, f"Backoff waited, sending frame...")
+                    station_log(self, f"Backoff waited, sending frame...")
                     self.back_off_time = -1  # leave the loop
                     self.waiting_backoff = False
 
@@ -376,22 +356,26 @@ class Gnb:
                         self)  # leave the waiting list as Backoff was waited successfully
 
             except simpy.Interrupt:  # handle the interruptions from transmitting stations
-                log(self, "Waiting was interrupted")
+                station_log(self, "Waiting was interrupted")
                 if self.first_interrupt and self.start is not None and self.waiting_backoff is True:
-                    log(self, "Backoff was interrupted, waiting to resume backoff...")
+                    station_log(self, "Backoff was interrupted, waiting to resume backoff...")
                     already_waited = self.env.now - self.start_nr
 
                     if already_waited <= prioritization_period_time:
                         self.back_off_time -= prioritization_period_time
-                        log(self, f"Interrupted in PP time {prioritization_period_time}, backoff {self.back_off_time}")
+                        station_log(self, f"Interrupted in PP time {prioritization_period_time}, backoff {self.back_off_time}")
                     else:
-                        slots_waited = int((already_waited - prioritization_period_time) / self.config_nr.observation_slot_duration)
+                        slots_waited = int(
+                            (already_waited - prioritization_period_time) / self.config_nr.observation_slot_duration)
                         # self.back_off_time -= already_waited  # set the Back Off to the remaining one
-                        self.back_off_time -= ((slots_waited * self.config_nr.observation_slot_duration) + prioritization_period_time)
-                        log(self, f"Completed slots(9us) {slots_waited} = {(slots_waited * self.config_nr.observation_slot_duration)}  plus PP time {prioritization_period_time}")
-                        log(self, f"Backoff decresed by {(slots_waited * self.config_nr.observation_slot_duration) + prioritization_period_time} new Backoff {self.back_off_time}")
+                        self.back_off_time -= ((
+                                                       slots_waited * self.config_nr.observation_slot_duration) + prioritization_period_time)
+                        station_log(self,
+                            f"Completed slots(9us) {slots_waited} = {(slots_waited * self.config_nr.observation_slot_duration)}  plus PP time {prioritization_period_time}")
+                        station_log(self,
+                            f"Backoff decresed by {(slots_waited * self.config_nr.observation_slot_duration) + prioritization_period_time} new Backoff {self.back_off_time}")
 
-                    #log(self, f"already waited {already_waited} Backoff us, new Backoff {self.back_off_time}")
+                    # log(self, f"already waited {already_waited} Backoff us, new Backoff {self.back_off_time}")
                     self.back_off_time += prioritization_period_time  # addnin new PP before next weiting
                     self.first_interrupt = False
                     self.waiting_backoff = False
@@ -411,31 +395,35 @@ class Gnb:
 
                 self.first_interrupt = True
                 self.back_off_time += prioritization_period_time  # add Priritization Period time to bacoff procedure
-                log(self, f"Starting to wait backoff (with PP): ({self.back_off_time}) us...")
+                station_log(self, f"Starting to wait backoff (with PP): ({self.back_off_time}) us...")
                 start = self.env.now  # store the current simulation time
                 self.channel.back_off_list_NR.append(self)  # join the list off stations which are waiting Back Offs
 
                 yield self.env.timeout(self.back_off_time)  # join the environment action queue
 
-                log(self, f"Backoff waited, sending frame...")
+                station_log(self, f"Backoff waited, sending frame...")
                 self.back_off_time = -1  # leave the loop
 
                 self.channel.back_off_list_NR.remove(self)  # leave the waiting list as Backoff was waited successfully
 
             except simpy.Interrupt:  # handle the interruptions from transmitting stations
-                log(self, "Backoff was interrupted, waiting to resume backoff...")
+                station_log(self, "Backoff was interrupted, waiting to resume backoff...")
                 if self.first_interrupt and start is not None:
                     already_waited = self.env.now - start
 
                     if already_waited <= prioritization_period_time:
                         self.back_off_time -= prioritization_period_time
-                        log(self, f"Interrupted in PP time {prioritization_period_time}, backoff {self.back_off_time}")
+                        station_log(self, f"Interrupted in PP time {prioritization_period_time}, backoff {self.back_off_time}")
                     else:
-                        slots_waited = int((already_waited - prioritization_period_time) / self.config_nr.observation_slot_duration)
+                        slots_waited = int(
+                            (already_waited - prioritization_period_time) / self.config_nr.observation_slot_duration)
                         # self.back_off_time -= already_waited  # set the Back Off to the remaining one
-                        self.back_off_time -= ((slots_waited * self.config_nr.observation_slot_duration) + prioritization_period_time)
-                        log(self, f"Completed slots(9us) {slots_waited} = {(slots_waited * self.config_nr.observation_slot_duration)}  plus PP time {prioritization_period_time}")
-                        log(self, f"Backoff decresed by {(slots_waited * self.config_nr.observation_slot_duration) + prioritization_period_time} new Backoff {self.back_off_time}")
+                        self.back_off_time -= ((
+                                                       slots_waited * self.config_nr.observation_slot_duration) + prioritization_period_time)
+                        station_log(self,
+                            f"Completed slots(9us) {slots_waited} = {(slots_waited * self.config_nr.observation_slot_duration)}  plus PP time {prioritization_period_time}")
+                        station_log(self,
+                            f"Backoff decresed by {(slots_waited * self.config_nr.observation_slot_duration) + prioritization_period_time} new Backoff {self.back_off_time}")
 
                     self.first_interrupt = False
                     self.waiting_backoff = False
@@ -444,11 +432,11 @@ class Gnb:
         # Process responsible for keeping the next sync slot boundry timestamp
         self.desync = random.randint(self.config_nr.min_sync_slot_desync, self.config_nr.max_sync_slot_desync)
         self.next_sync_slot_boundry = self.desync
-        log(self, f"Selected random desync to {self.desync} us")
+        station_log(self, f"Selected random desync to {self.desync} us")
         yield self.env.timeout(self.desync)  # waiting randomly chosen desync time
         while True:
             self.next_sync_slot_boundry += self.config_nr.synchronization_slot_duration
-            log(self, f"Next synch slot boundry is: {self.next_sync_slot_boundry}")
+            station_log(self, f"Next synch slot boundry is: {self.next_sync_slot_boundry}")
             yield self.env.timeout(self.config_nr.synchronization_slot_duration)
 
     def send_transmission(self):
@@ -474,7 +462,7 @@ class Gnb:
                     if gnb.process.is_alive:
                         gnb.process.interrupt()
 
-                log(self, f'Transmission will be for: {self.transmission_to_send.transmission_time} time')
+                station_log(self, f'Transmission will be for: {self.transmission_to_send.transmission_time} time')
 
                 yield self.env.timeout(self.transmission_to_send.transmission_time)
 
@@ -483,9 +471,9 @@ class Gnb:
 
                 if was_sent:  # transmission successful
                     self.channel.airtime_control_NR[self.name] += self.transmission_to_send.rs_time
-                    log(self, f"adding rs time to control data: {self.transmission_to_send.rs_time}")
+                    station_log(self, f"adding rs time to control data: {self.transmission_to_send.rs_time}")
                     self.channel.airtime_data_NR[self.name] += self.transmission_to_send.airtime
-                    log(self, f"adding data airtime to data: {self.transmission_to_send.airtime}")
+                    station_log(self, f"adding data airtime to data: {self.transmission_to_send.airtime}")
                     self.channel.tx_list_NR.clear()  # clear transmitting list
                     self.channel.tx_list.clear()
                     self.channel.tx_queue.release(res)  # leave the transmitting queue
@@ -546,47 +534,23 @@ class Gnb:
         return back_off * self.config_nr.observation_slot_duration
 
     def sent_failed(self):
-        log(self, "There was a collision")
+        station_log(self, "There was a collision")
         self.transmission_to_send.number_of_retransmissions += 1
         self.channel.failed_transmissions_NR += 1
         self.failed_transmissions += 1
         self.failed_transmissions_in_row += 1
-        log(self, self.channel.failed_transmissions_NR)
+        station_log(self, self.channel.failed_transmissions_NR)
         if self.transmission_to_send.number_of_retransmissions > 7:
             self.failed_transmissions_in_row = 0
 
     def sent_completed(self):
-        log(self, f"Successfully sent transmission")
+        station_log(self, f"Successfully sent transmission")
         self.transmission_to_send.t_end = self.env.now
         self.transmission_to_send.t_to_send = (self.transmission_to_send.t_end - self.transmission_to_send.t_start)
         self.channel.succeeded_transmissions_NR += 1
         self.succeeded_transmissions += 1
         self.failed_transmissions_in_row = 0
         return True
-
-
-@dataclass()
-class Channel:
-    tx_queue: simpy.PreemptiveResource  # lock for the stations with the longest frame to transmit
-    tx_lock: simpy.Resource  # channel lock (locked when there is ongoing transmission)
-    n_of_stations: int  # number of transmitting stations in the channel
-    n_of_eNB: int
-    backoffs: Dict[int, Dict[int, int]]
-    airtime_data: Dict[str, int]
-    airtime_control: Dict[str, int]
-    airtime_data_NR: Dict[str, int]
-    airtime_control_NR: Dict[str, int]
-    tx_list: List[Station] = field(default_factory=list)  # transmitting stations in the channel
-    back_off_list: List[Station] = field(default_factory=list)  # stations in backoff phase
-    tx_list_NR: List[Gnb] = field(default_factory=list)  # transmitting stations in the channel
-    back_off_list_NR: List[Gnb] = field(default_factory=list)  # stations in backoff phase
-    ## problem list of station objects, what if we 2 differenet station objects???
-
-    failed_transmissions: int = 0  # total failed transmissions
-    succeeded_transmissions: int = 0  # total succeeded transmissions
-    bytes_sent: int = 0  # total bytes sent
-    failed_transmissions_NR: int = 0  # total failed transmissions
-    succeeded_transmissions_NR: int = 0  # total succeeded transmissions
 
 
 @dataclass()
@@ -660,7 +624,7 @@ def run_simulation(
     environment.run(until=simulation_time * 1000000)
 
     if number_of_stations != 0:
-        if(channel.failed_transmissions + channel.succeeded_transmissions) != 0:
+        if (channel.failed_transmissions + channel.succeeded_transmissions) != 0:
             p_coll = "{:.4f}".format(
                 channel.failed_transmissions / (channel.failed_transmissions + channel.succeeded_transmissions))
         else:
@@ -745,14 +709,12 @@ def run_simulation(
     print(f" Wifi succ: {channel.succeeded_transmissions} fail: {channel.failed_transmissions}")
     print(f" NR succ: {channel.succeeded_transmissions_NR} fail: {channel.failed_transmissions_NR}")
 
-
-    fairness = (normalized_channel_occupancy_time_all**2) / (2 * (normalized_channel_occupancy_time**2 + normalized_channel_occupancy_time_NR**2 ))
+    fairness = (normalized_channel_occupancy_time_all ** 2) / (
+            2 * (normalized_channel_occupancy_time ** 2 + normalized_channel_occupancy_time_NR ** 2))
 
     print(f'fairness: {fairness}')
     joint = fairness * normalized_channel_occupancy_time_all
     print(f'joint: {joint}')
-
-
 
     write_header = True
     if os.path.isfile(output_csv):
@@ -761,10 +723,12 @@ def run_simulation(
         result_adder = csv.writer(result_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
 
         if write_header:
-            result_adder.writerow(["Seed,WiFi,Gnb,ChannelOccupancyWiFi,ChannelEfficiencyWiFi,PcolWifi,ChannelOccupancyNR,ChannelEfficiencyNR,PcolNR,ChannelOccupancyAll,ChannelEfficiencyAll"])
+            result_adder.writerow([
+                "Seed,WiFi,Gnb,ChannelOccupancyWiFi,ChannelEfficiencyWiFi,PcolWifi,ChannelOccupancyNR,ChannelEfficiencyNR,PcolNR,ChannelOccupancyAll,ChannelEfficiencyAll"])
 
         result_adder.writerow(
-            [seed, config.cw_max, fairness, number_of_stations, number_of_gnb, normalized_channel_occupancy_time, normalized_channel_efficiency,
+            [seed, config.cw_max, fairness, number_of_stations, number_of_gnb, normalized_channel_occupancy_time,
+             normalized_channel_efficiency,
              p_coll,
              normalized_channel_occupancy_time_NR, normalized_channel_efficiency_NR, p_coll_NR,
              normalized_channel_occupancy_time_all, normalized_channel_efficiency_all])
@@ -813,7 +777,7 @@ class FBETimers:
 
 
 class FBE(ABC):
-    def __init__(self, name: str, timers: FBETimers, offset=0):
+    def __init__(self, name: str, timers: FBETimers, offset=0, log_name='default'):
         self.name = self.__str__() + name
         self.env = None
         self.succeeded_transmissions = 0
@@ -828,6 +792,7 @@ class FBE(ABC):
         self.air_time = 0
         self.offset = offset
         self.run_with_offset = self.offset > 0
+        self.log_name = log_name
 
     @abstractmethod
     def start(self):
@@ -848,7 +813,7 @@ class FBE(ABC):
         init = self.env.now
         try:
             self.channel.cca_list_NR_FBE.append(self)
-            log(self, 'Sensing if channel is idle')
+            station_log(self, 'Sensing if channel is idle')
             if len(self.channel.tx_list_NR_FBE) > 0:
                 raise simpy.Interrupt("CCA interrupted!")
             yield self.env.timeout(self.timers.cca)
@@ -857,7 +822,7 @@ class FBE(ABC):
         except simpy.Interrupt:
             end = self.env.now
             diff = end - init
-            log(self, 'CCA interrupted, skipping next FFP')
+            station_log(self, 'CCA interrupted, skipping next FFP')
             if diff == 0:
                 yield self.env.timeout(self.timers.cca)
             else:
@@ -884,7 +849,7 @@ class FBE(ABC):
         self.channel.tx_list_NR_FBE.append(self)
         with self.channel.tx_lock.request() as request_token:
             try:
-                log(self, f"Starting transmission")
+                station_log(self, f"Starting transmission")
                 request = yield request_token | self.env.timeout(0)
                 if request_token not in request:
                     # log(self, f"Collision in channel")
@@ -906,13 +871,13 @@ class FBE(ABC):
                 self.channel.tx_list_NR_FBE.remove(self)
 
             except simpy.Interrupt:
-                log(self, f"Collision in channel")
+                station_log(self, f"Collision in channel")
                 yield self.env.timeout(self.timers.cot)
                 self.channel.tx_list_NR_FBE.remove(self)
                 self.sent_failed()
 
     def sent_failed(self):
-        log(self, f"Transmission failed")
+        station_log(self, f"Transmission failed")
         self.add_event_to_dict(EventType.CHANNEL_COLLISION.name)
         self.failed_transmissions += 1
         self.channel.failed_transmissions_NR_FBE += 1
@@ -936,7 +901,7 @@ class FBE(ABC):
         yield self.process
 
     def sent_completed(self, interrupted_by_simulation_end=False):
-        log(self, f"Successfully sent transmission")
+        station_log(self, f"Successfully sent transmission")
         self.add_event_to_dict(EventType.SUCCESSFUL_TRANSMISSION.name)
         if interrupted_by_simulation_end:
             self.air_time = self.succeeded_transmissions * self.timers.cot + self.channel.simulation_time - self.env.now
@@ -997,10 +962,10 @@ class RandomMutingFBE(FBE):
         while True:
             if self.selected_number_of_frames_in_a_row == 0:
                 self.selected_number_of_muted_periods = select_random_number(self.max_muted_periods)
-                log(self,
+                station_log(self,
                     f"Selecting number of muted periods. Selected number: {self.selected_number_of_muted_periods}")
                 for i in range(0, self.selected_number_of_muted_periods):
-                    log(self, f"Skipping frame... {i + 1}/{self.selected_number_of_muted_periods}")
+                    station_log(self, f"Skipping frame... {i + 1}/{self.selected_number_of_muted_periods}")
                     yield self.env.process(self.fbe_skip_process())
                     self.selected_number_of_frames_in_a_row = -1
 
@@ -1010,11 +975,11 @@ class RandomMutingFBE(FBE):
                 if self.selected_number_of_frames_in_a_row == -1:
                     self.selected_number_of_frames_in_a_row = \
                         select_random_number(self.max_frames_in_a_row)
-                    log(self,
+                    station_log(self,
                         f'Selecting number of frames which will be transmitted in the row. '
                         f'Selected number: {self.selected_number_of_frames_in_a_row} ')
 
-                log(self, f'Continuous frames to go: {self.selected_number_of_frames_in_a_row}')
+                station_log(self, f'Continuous frames to go: {self.selected_number_of_frames_in_a_row}')
                 yield self.env.process(self.fbe_transmission_process())
 
     def process_cca(self):
@@ -1047,7 +1012,7 @@ class FloatingFBE(FBE):
 
     def wait_random_time_before_cca(self):
         time_to_wait = select_random_number(self.number_of_slots) * self.timers.observation_slot_time
-        log(self, f'Selected backoff before CCA : {time_to_wait}')
+        station_log(self, f'Selected backoff before CCA : {time_to_wait}')
         self.pause_time_after_transmission = self.timers.idle_period - time_to_wait - self.timers.cca
         yield self.env.timeout(time_to_wait)
 
@@ -1066,7 +1031,7 @@ class FloatingFBE(FBE):
         else:
             self.transmission_process = self.env.process(self.send_transmission())
             yield self.transmission_process
-            log(self, f'Waiting : {self.pause_time_after_transmission} before next FFP')
+            station_log(self, f'Waiting : {self.pause_time_after_transmission} before next FFP')
             yield self.env.timeout(self.pause_time_after_transmission)
 
     def backoff_process(self):
@@ -1096,7 +1061,7 @@ class FixedMutingFBE(FBE):
         yield self.env.process(self.process_init_offset())
         while True:
             if self.muted_periods_to_go > 0:
-                log(self,
+                station_log(self,
                     f'Waiting muted periods after successful transmission. Muted periods to go '
                     f'{self.muted_periods_to_go}')
                 if self.muted_periods_to_go == 1:
@@ -1176,21 +1141,21 @@ class DeterministicBackoffFBE(FBE):
 
         if self.skip_next_cot:
             self.interrupt_counter += 1
-            log(self, f'Interrupt counter incremented. Actual value: {self.interrupt_counter}')
+            station_log(self, f'Interrupt counter incremented. Actual value: {self.interrupt_counter}')
 
         if self.backoff_counter != 0:
             self.backoff_counter -= 1
-            log(self, f'Backoff decremented. Actual value: {self.backoff_counter}')
+            station_log(self, f'Backoff decremented. Actual value: {self.backoff_counter}')
 
     def sent_failed(self):
         super().sent_failed()
         if self.retransmission_counter < self.maximum_number_of_retransmissions:
             self.retransmission_counter += 1
-            log(self, f'Incrementing retransmission_counter to {self.retransmission_counter}')
+            station_log(self, f'Incrementing retransmission_counter to {self.retransmission_counter}')
             self.select_backoff()
         else:
             # In our case simply setting counter to 0 and restarting procedure in next ffp
-            log(self,
+            station_log(self,
                 f'Retransmission_counter exceeded maximum number of retransmissions'
                 f' {self.retransmission_counter}/{self.maximum_number_of_retransmissions}.'
                 f'Dropping frame...')
@@ -1210,10 +1175,10 @@ class DeterministicBackoffFBE(FBE):
             self.backoff_counter = self.init_backoff_value + self.interrupt_counter
             self.interrupt_counter = 0
         else:
-            log(self, f'False in r%m < threshold ({modulo}<{self.threshold})')
+            station_log(self, f'False in r%m < threshold ({modulo}<{self.threshold})')
             top_range = self.maximum_number_of_retransmissions - 1
             self.backoff_counter = select_random_number(top_range, bottom_range=0)
-        log(self, f'Selected new backoff counter: {self.backoff_counter}')
+        station_log(self, f'Selected new backoff counter: {self.backoff_counter}')
         self.add_backoff_to_dict()
 
     def add_backoff_to_dict(self):
@@ -1242,189 +1207,6 @@ class FBEVersion(Enum):
     DETERMINISTIC_BACKOFF_FBE = 5
 
 
-# class GnbFBE:
-#     station_number = 0
-#
-#     def __init__(self,
-#                  name: str,
-#                  env: simpy.Environment,
-#                  channel: dataclass,
-#                  col: str,
-#                  timers: FBETimers,
-#                  run_with_offset=False,
-#                  offset=0,
-#                  fbe_enchantment='none'
-#                  ):
-#         self.name = name
-#         self.env = env
-#         self.succeeded_transmissions = 0
-#         self.failed_transmissions = 0
-#         self.failed_transmissions_in_row = 0
-#         self.channel = channel
-#         self.col = col
-#         self.timers = timers
-#         self.process = None
-#         self.transmission_process = None
-#         self.transmission_time = 15
-#         self.skip_next_cot = False
-#         self.air_time = 0
-#         self.run_with_offset = run_with_offset
-#         self.offset = offset
-#         if fbe_enchantment not in fbe_enchantments:
-#             print(f'Enchantment: {fbe_enchantment} '
-#                   f'in {fbe_enchantments} creating GnbFBE object with standard functionality')
-#             fbe_enchantment = 'none'
-#         self.fbe_enchantment = fbe_enchantment
-#         self.max_frames_in_a_row = 5
-#         self.max_muted_periods = 5
-#         self.selected_number_of_frames_in_a_row = -1
-#         self.selected_number_of_muted_periods = 0
-#
-#         env.process(self.start())
-#
-#     def start(self):
-#         if self.run_with_offset:
-#             yield self.env.timeout(self.offset)
-#         # Init cca process
-#         self.process = self.env.process(self.process_cca())
-#         yield self.process
-#
-#         if self.fbe_enchantment == 'none':
-#             yield self.env.process(self.standard_fbe())
-#         elif self.fbe_enchantment == 'continuous_frames':
-#             yield self.env.process(self.continuous_frames_enchantment())
-#
-#     def continuous_frames_enchantment(self):
-#         while True:
-#             if self.selected_number_of_frames_in_a_row == 0:
-#                 self.selected_number_of_muted_periods = self.gen_random_station_start_shift(self.max_muted_periods)
-#                 log(self,
-#                     f"Selecting number of muted periods. Selected number: {self.selected_number_of_muted_periods}")
-#                 for i in range(0, self.selected_number_of_muted_periods):
-#                     log(self, f"Skipping frame... {i + 1}/{self.selected_number_of_muted_periods}")
-#                     yield self.env.process(self.fbe_skip_process())
-#                     self.selected_number_of_frames_in_a_row = -1
-#
-#             if self.skip_next_cot:
-#                 yield self.env.process(self.fbe_skip_process())
-#             else:
-#                 if self.selected_number_of_frames_in_a_row == -1:
-#                     self.selected_number_of_frames_in_a_row = \
-#                         self.gen_random_station_start_shift(self.max_frames_in_a_row)
-#                     log(self,
-#                         f'Selecting number of frames which will be transmitted in the row. '
-#                         f'Selected number: {self.selected_number_of_frames_in_a_row} ')
-#
-#                 log(self, f'Continuous frames to go: {self.selected_number_of_frames_in_a_row}')
-#                 yield self.env.process(self.fbe_transmission_process())
-#
-#     def standard_fbe(self):
-#         while True:
-#             if self.skip_next_cot:
-#                 yield self.env.process(self.fbe_skip_process())
-#             else:
-#                 yield self.env.process(self.fbe_transmission_process())
-#
-#     def fbe_skip_process(self):
-#         yield self.env.process(self.skip_cot())
-#         yield self.env.process(self.wait_until_cca())
-#         self.process = self.env.process(self.process_cca())
-#         yield self.process
-#
-#     def fbe_transmission_process(self):
-#         self.transmission_process = self.env.process(self.send_transmission())
-#         yield self.transmission_process
-#         yield self.env.process(self.wait_until_cca())
-#         self.process = self.env.process(self.process_cca())
-#         yield self.process
-#
-#     def wait_until_cca(self):
-#         yield self.env.timeout(self.timers.idle_period - self.timers.cca)
-#
-#     def skip_cot(self):
-#         yield self.env.timeout(self.timers.cot)
-#
-#     def gen_random_station_start_shift(self, random_range):
-#         return random.randint(1, random_range)
-#
-#     def process_cca(self):
-#         init = self.env.now
-#         try:
-#             self.channel.cca_list_NR_FBE.append(self)
-#             log(self, 'Sensing if channel is idle')
-#             if len(self.channel.tx_list_NR_FBE) > 0:
-#                 raise simpy.Interrupt("CCA interrupted!")
-#             yield self.env.timeout(self.timers.cca)
-#             self.skip_next_cot = False
-#             self.channel.cca_list_NR_FBE.remove(self)
-#         except simpy.Interrupt:
-#             end = self.env.now
-#             diff = end - init
-#             log(self, 'CCA interrupted, skipping next FFP')
-#             if diff == 0:
-#                 yield self.env.timeout(self.timers.cca)
-#             else:
-#                 yield self.env.timeout(diff)
-#             self.skip_next_cot = True
-#             if self.fbe_enchantment == CONTINUOUS_FRAMES_ENCHANTMENT:
-#                 self.selected_number_of_frames_in_a_row = -1
-#             self.channel.cca_list_NR_FBE.remove(self)
-#
-#     def check_collision(self):
-#         lists_len_sum = self.get_transmitters_list_len_sum()
-#         if lists_len_sum > 1 or lists_len_sum == 0:
-#             self.sent_failed()
-#             return False
-#         self.sent_completed()
-#         return True
-#
-#     def send_transmission(self):
-#         self.channel.tx_list_NR_FBE.append(self)
-#         with self.channel.tx_lock.request() as request_token:
-#             try:
-#                 log(self, f"Starting transmission")
-#                 request = yield request_token | self.env.timeout(0)
-#                 if request_token not in request:
-#                     raise simpy.Interrupt("Collision in channel")
-#                 for station in self.channel.cca_list_NR_FBE:
-#                     if station.process.is_alive:
-#                         station.process.interrupt()
-#                 now = self.env.now
-#                 if 1000000 - now < self.timers.cot:
-#                     self.sent_completed(True)
-#                 yield self.env.timeout(self.timers.cot)
-#                 if len(self.channel.tx_list_NR_FBE) > 1:
-#                     self.sent_failed()
-#                 else:
-#                     self.sent_completed()
-#                 self.channel.tx_list_NR_FBE.remove(self)
-#
-#             except simpy.Interrupt:
-#                 yield self.env.timeout(self.timers.cot)
-#                 self.channel.tx_list_NR_FBE.remove(self)
-#                 self.sent_failed()
-#
-#     def get_transmitters_list_len_sum(self):
-#         return len(self.channel.tx_list) + len(self.channel.tx_list_NR) + len(self.channel.tx_list_NR_FBE)
-#
-#     def sent_failed(self):
-#         log(self, f"Transmission failed")
-#         self.failed_transmissions += 1
-#         self.channel.failed_transmissions_NR_FBE += 1
-#         if self.fbe_enchantment == CONTINUOUS_FRAMES_ENCHANTMENT:
-#             self.selected_number_of_frames_in_a_row = -1
-#
-#     def sent_completed(self, interrupted_by_simulation_end=False):
-#         log(self, f"Successfully sent transmission")
-#         if self.fbe_enchantment == CONTINUOUS_FRAMES_ENCHANTMENT:
-#             self.selected_number_of_frames_in_a_row += -1
-#         if interrupted_by_simulation_end:
-#             self.air_time = self.succeeded_transmissions * self.timers.cot + 1000000 - self.env.now
-#             self.succeeded_transmissions += 1
-#         else:
-#             self.succeeded_transmissions += 1
-#             self.air_time = self.succeeded_transmissions * self.timers.cot
-#         self.channel.succeeded_transmissions_NR_FBE += 1
 class EventType(Enum):
     SUCCESSFUL_TRANSMISSION = 1
     CHANNEL_COLLISION = 2

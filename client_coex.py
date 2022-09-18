@@ -1,4 +1,3 @@
-
 from coexistanceSimpy.Coexistence import *
 
 
@@ -26,9 +25,6 @@ def single_run(
                    backoffs, airtime_data, airtime_control, airtime_data_NR, airtime_control_NR)
 
 
-
-
-
 if __name__ == "__main__":
     #  running diferent scenarios of simulation
 
@@ -37,7 +33,7 @@ if __name__ == "__main__":
     # single_run(seeds=7932
     #            , stations_number=1, gnb_number=1, simulation_time=100, payload_size=1472, cw_min=15, cw_max=1023, r_limit=7, mcs_value=7)
 
-    #performing multiple runs
+    # performing multiple runs
     list = []
     for radn in range(1, 11):
         n = random.randint(10, 1000)
@@ -47,7 +43,7 @@ if __name__ == "__main__":
 
     for var in list:
         for k in range(1, 9):
-        #for var in list:
-        # k = 4
+            # for var in list:
+            # k = 4
             single_run(seeds=var, stations_number=k, gnb_number=k, simulation_time=100, payload_size=1472, cw_min=15,
                        cw_max=63, r_limit=7, mcs_value=7)

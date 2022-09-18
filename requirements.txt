@@ -1,5 +1,9 @@
-Click
-simpy
-pandas
-matplotlib
-scipy
+Click~=8.1.2
+simpy~=4.0.1
+pandas~=1.4.2
+matplotlib~=3.5.2
+scipy~=1.8.1
+cycler~=0.11.0
+numpy~=1.22.3
+PyQt5~=5.15.4
+duckdb~=0.5.0

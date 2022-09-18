@@ -11,9 +11,10 @@
     }
   ],
   "SIMULATION_TIME": "1000000",
-  "PLOT_PARAMS": {
+  "OUTPUT_PARAMS": {
     "file_name": "db_fbe_floating_cot_fixed_ffp",
     "folder_name": "floating_cot_fixed_ffp_v2",
+    "enable_logging": true,
     "all_in_one": {
       "x_axis": "normalized_cot",
       "y_axis": "normalized_air_time",
