@@ -1,0 +1,24 @@
+{
+  "RANDOM_MUTING_FBE": [
+    {
+      "name": "GNB_FBE {}",
+      "offset": "0",
+      "cot": "250;750;1250;1750;2250;2750;3250;3750;4250;4750",
+      "ffp": "5000",
+      "max_muted_periods": "5",
+      "max_frames_in_row": "5"
+    }
+  ],
+  "SIMULATION_TIME": "1000000",
+  "PLOT_PARAMS": {
+    "file_name": "random_muting_fbe_floating_cot_fixed_ffp",
+    "folder_name": "floating_cot_fixed_ffp_v2",
+    "all_in_one": {
+      "x_axis": "normalized_cot",
+      "y_axis": "normalized_air_time",
+      "title": "Random-muting FBE",
+      "x_label": "Normalized cot",
+      "y_label": "Normalized airtime"
+    }
+  }
+}
