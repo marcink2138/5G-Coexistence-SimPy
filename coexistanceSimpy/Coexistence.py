@@ -1232,23 +1232,33 @@ class FixedMutingFBE(FBE):
     def start(self):
         yield self.env.process(self.process_init_offset())
         while True:
-            if self.skip_next_cot:
-                yield self.env.process(self.fbe_skip_process())
+            if self.muted_periods_to_go > 0:
+                log(self,
+                    f'Waiting muted periods after successful transmission. Muted periods to go '
+                    f'{self.muted_periods_to_go}')
+                if self.muted_periods_to_go == 1:
+                    yield self.env.process(self.fbe_skip_process())
+                else:
+                    yield self.env.process(self.fbe_skip_process_without_cca())
+                self.muted_periods_to_go += -1
             else:
-                if self.muted_periods_to_go > 0:
-                    log(self,
-                        f'Waiting muted periods after successful transmission. Muted periods to go '
-                        f'{self.muted_periods_to_go}')
-                    if self.muted_periods_to_go == 1:
-                        yield self.env.process(self.fbe_skip_process())
-                    else:
-                        yield self.env.process(self.fbe_skip_process_without_cca())
-                    self.muted_periods_to_go += -1
+                if self.skip_next_cot:
+                    yield self.env.process(self.fbe_skip_process())
                 else:
                     yield self.env.process(self.fbe_transmission_process())
 
     def fbe_skip_process_without_cca(self):
         yield self.env.timeout(self.timers.ffp)
+
+    def fbe_transmission_process(self):
+        self.transmission_process = self.env.process(self.send_transmission())
+        yield self.transmission_process
+        yield self.env.process(self.wait_until_cca())
+        if self.muted_periods_to_go <= 0:
+            self.process = self.env.process(self.process_cca())
+            yield self.process
+        else:
+            yield self.env.timeout(self.timers.cca)
 
     def sent_completed(self, interrupted_by_simulation_end=False):
         super().sent_completed(interrupted_by_simulation_end)

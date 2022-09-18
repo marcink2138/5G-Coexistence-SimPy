@@ -9,6 +9,12 @@ from coexistanceSimpy import FloatingFBE
 from coexistanceSimpy import RandomMutingFBE
 from coexistanceSimpy import StandardFBE
 
+standard_fbe_json_list = []
+fixed_muting_fbe_json_list = []
+random_muting_fbe_json_list = []
+floating_fbe_json_list = []
+db_fbe_json_list = []
+
 
 def collect_cot_ffp_offset_zip(cot_list, ffp_list, offset_list):
     max_size = max(len(cot_list), len(ffp_list), len(offset_list))
@@ -156,20 +162,23 @@ def get_scenario_directly_from_json(json_path):
     f = open(json_path)
     j = json.load(f)
     f.close()
+    global standard_fbe_json_list
     standard_fbe_json_list = j[FBEVersion.STANDARD_FBE.name] if FBEVersion.STANDARD_FBE.name in j else []
+    global fixed_muting_fbe_json_list
     fixed_muting_fbe_json_list = j[FBEVersion.FIXED_MUTING_FBE.name] if FBEVersion.FIXED_MUTING_FBE.name in j else []
+    global random_muting_fbe_json_list
     random_muting_fbe_json_list = j[FBEVersion.RANDOM_MUTING_FBE.name] if FBEVersion.RANDOM_MUTING_FBE.name in j else []
+    global floating_fbe_json_list
     floating_fbe_json_list = j[FBEVersion.FLOATING_FBE.name] if FBEVersion.FLOATING_FBE.name in j else []
+    global db_fbe_json_list
     db_fbe_json_list = j[
         FBEVersion.DETERMINISTIC_BACKOFF_FBE.name] if FBEVersion.DETERMINISTIC_BACKOFF_FBE.name in j else []
-    station_list = get_station_list_from_json_lists(standard_fbe_json_list, fixed_muting_fbe_json_list,
-                                                    random_muting_fbe_json_list, floating_fbe_json_list,
-                                                    db_fbe_json_list)
     simulation_time = int(j["SIMULATION_TIME"]) if "SIMULATION_TIME" in j else 1000000
     plot_params_json = j["PLOT_PARAMS"] if "PLOT_PARAMS" in j else None
     plot_params = build_plot_params_obj(plot_params_json)
     is_separate_run = j["RUN_SEPARATELY"] if "RUN_SEPARATELY" in j else False
-    return station_list, simulation_time, plot_params, is_separate_run
+    scenario_runs = j["SCENARIO_RUNS"] if "SCENARIO_RUNS" in j else 1
+    return simulation_time, plot_params, is_separate_run, scenario_runs
 
 
 def build_plot_params_obj(plot_params_json):
@@ -237,9 +246,7 @@ def get_db_fbe_from_json_list(db_fbe_json_list, stations_list):
         i += 1
 
 
-def get_station_list_from_json_lists(standard_fbe_json_list, fixed_muting_fbe_json_list, random_muting_fbe_json_list,
-                                     floating_fbe_json_list,
-                                     db_fbe_json_list):
+def get_station_list_from_json_lists():
     stations_list = []
     get_standard_fbe_from_json_list(standard_fbe_json_list, stations_list)
     get_fixed_muting_fbe_from_json_list(fixed_muting_fbe_json_list, stations_list)

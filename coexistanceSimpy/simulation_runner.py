@@ -1,7 +1,10 @@
 import os
+from copy import deepcopy
 
+import duckdb
 import pandas as pd
 import simpy
+from coexistanceSimpy.scenario_creator_helper import get_station_list_from_json_lists
 from PyQt5.QtCore import QThread, pyqtSignal
 from matplotlib import pyplot as plt
 
@@ -115,32 +118,7 @@ def group_stations_by_version(db_fbe_stations, fixed_muting_fbe_stations, floati
             db_fbe_stations.append(station)
 
 
-def run_simulation(stations_list, simulation_time, debug_fun=None, plot_params=None, is_separate_run=False):
-    result_dict, event_dict_list, db_fbe_backoff_changes_dict_list = runner(simulation_time, stations_list) \
-        if not is_separate_run else separate_runner(stations_list, simulation_time)
-
-    df = pd.DataFrame.from_dict(result_dict)
-    if plot_params is not None:
-        process_results(df, plot_params)
-        path_to_folder = get_path_to_folder(plot_params)
-        df.to_csv(path_to_folder + plot_params.file_name + "_df.csv")
-        events_df = merge_dicts_into_df(event_dict_list)
-        events_df.to_csv(path_to_folder + plot_params.file_name + "_events.csv")
-        db_fbe_backoff_changes_df = merge_dicts_into_df(db_fbe_backoff_changes_dict_list)
-        db_fbe_backoff_changes_df.to_csv(path_to_folder + plot_params.file_name + "_db_fbe_backoff.csv")
-
-
-def merge_dicts_into_df(dict_list):
-    df = None
-    for result_dict in dict_list:
-        if df is None:
-            df = pd.DataFrame.from_dict(result_dict)
-        else:
-            df = pd.concat([df, pd.DataFrame.from_dict(result_dict)])
-    return df
-
-
-def runner(simulation_time, stations_list):
+def run_simulation(simulation_time, scenario_runs=1, plot_params=None, is_separate_run=False):
     result_dict = {"station_name": [],
                    "air_time": [],
                    "cot": [],
@@ -155,6 +133,52 @@ def runner(simulation_time, stations_list):
                    "summary_air_time": []}
     event_dict_list = []
     db_fbe_backoff_changes_dict_list = []
+    for i in range(scenario_runs):
+        print(f"Running scenario : {i + 1}/{scenario_runs}")
+        stations_list = get_station_list_from_json_lists()
+        if is_separate_run:
+            separate_runner(stations_list, simulation_time, result_dict, event_dict_list,
+                            db_fbe_backoff_changes_dict_list)
+        else:
+            runner(simulation_time, stations_list, result_dict, event_dict_list, db_fbe_backoff_changes_dict_list)
+
+    df = pd.DataFrame.from_dict(result_dict)
+    if scenario_runs > 1:
+        df = prepare_dataframe_after_many_scenario_runs(df)
+    if plot_params is not None:
+        process_results(df, plot_params)
+        path_to_folder = get_path_to_folder(plot_params)
+        df.to_csv(path_to_folder + plot_params.file_name + "_df.csv")
+        events_df = merge_dicts_into_df(event_dict_list)
+        events_df.to_csv(path_to_folder + plot_params.file_name + "_events.csv")
+        db_fbe_backoff_changes_df = merge_dicts_into_df(db_fbe_backoff_changes_dict_list)
+        db_fbe_backoff_changes_df.to_csv(path_to_folder + plot_params.file_name + "_db_fbe_backoff.csv")
+
+
+def prepare_dataframe_after_many_scenario_runs(df):
+    return duckdb.query("SELECT station_name, avg(air_time) as air_time, "
+                        "cot, normalized_cot, "
+                        "ffp, normalized_ffp, "
+                        "avg(normalized_air_time) as normalized_air_time, "
+                        "avg(successful_transmissions) as successful_transmissions, "
+                        "avg(failed_transmissions) as failed_transmissions, "
+                        "fbe_version, avg(fairness) as fairness, "
+                        "avg(summary_air_time) as summary_air_time "
+                        "FROM df "
+                        "GROUP BY station_name, cot, normalized_cot,ffp, normalized_ffp,fbe_version").df()
+
+
+def merge_dicts_into_df(dict_list):
+    df = None
+    for result_dict in dict_list:
+        if df is None:
+            df = pd.DataFrame.from_dict(result_dict)
+        else:
+            df = pd.concat([df, pd.DataFrame.from_dict(result_dict)])
+    return df
+
+
+def runner(simulation_time, stations_list, result_dict, event_dict_list, db_fbe_backoff_changes_dict_list):
     total_run_number = get_total_run_number(stations_list)
     print(f'Total run number: {total_run_number}')
     for run_number in range(total_run_number):
@@ -169,24 +193,9 @@ def runner(simulation_time, stations_list):
         current_run_stations_list.clear()
         event_dict_list.append(channel.event_dict)
         db_fbe_backoff_changes_dict_list.append(channel.db_fbe_backoff_change_dict)
-    return result_dict, event_dict_list, db_fbe_backoff_changes_dict_list
 
 
-def separate_runner(stations_list, simulation_time):
-    result_dict = {"station_name": [],
-                   "air_time": [],
-                   "cot": [],
-                   "normalized_cot": [],
-                   "ffp": [],
-                   "normalized_ffp": [],
-                   "normalized_air_time": [],
-                   "successful_transmissions": [],
-                   "failed_transmissions": [],
-                   "fbe_version": [],
-                   "fairness": [],
-                   "summary_air_time": []}
-    event_dict_list = []
-    db_fbe_backoff_changes_dict_list = []
+def separate_runner(stations_list, simulation_time, result_dict, event_dict_list, db_fbe_backoff_changes_dict_list):
     for stations in stations_list:
         print(f'Running stations separately. Current number of stations: {len(stations)}')
         for station in stations:
@@ -200,39 +209,7 @@ def separate_runner(stations_list, simulation_time):
             event_dict_list.append(channel.event_dict)
             db_fbe_backoff_changes_dict_list.append(channel.db_fbe_backoff_change_dict)
         collect_results(stations, result_dict, simulation_time)
-    return result_dict, event_dict_list, db_fbe_backoff_changes_dict_list
 
-
-# def process_results(df, plot_params: PlotParams):
-#     axis_label_zip, multiple_plots = get_axis_label_zip(plot_params)
-#     for x_axis, y_axis, x_label, y_label in axis_label_zip:
-#         fig, ax = plt.subplots()
-#         i = 0
-#         if x_axis == 'station_name':
-#             ax = df.plot(ax=ax, kind='bar', x=x_axis, y=y_axis)
-#         else:
-#             for key, grp in df.groupby(["station_name"]):
-#                 ax = grp.plot(ax=ax, marker=marks[i], x=x_axis, y=y_axis, label=key, c=colors[i])
-#                 i += 1
-#
-#         ax.set(xlabel=x_label, ylabel=y_label, title=plot_params.title)
-#         ax.set_ylim(bottom=0)
-#         plt.tight_layout()
-#         path_to_save = None
-#         if plot_params.folder_name is None:
-#             path_to_save = os.getcwd() + '/val_output/images/'
-#         else:
-#             path_to_save = os.getcwd() + f'/val_output/images/{plot_params.folder_name}'
-#             if not os.path.exists(path_to_save):
-#                 os.makedirs(path_to_save)
-#             path_to_save += '/'
-#         if multiple_plots:
-#             path_to_save += plot_params.file_name + f'_{x_axis}_{y_axis}'
-#         else:
-#             path_to_save += plot_params.file_name
-#         plt.savefig(path_to_save)
-#         plt.savefig(path_to_save + '.svg')
-#         plt.close()
 
 def process_results(df, plot_params: PlotParams):
     if plot_params.all_in_one is not None:
@@ -356,50 +333,16 @@ def zip_plot_params(*params):
     return zip(*params_outer_list)
 
 
-def get_axis_label_zip(plot_params: PlotParams):
-    x_axis_list = plot_params.x_axis.split(';')
-    y_axis_list = plot_params.y_axis.split(';')
-    x_label_list = plot_params.x_label.split(';')
-    y_label_list = plot_params.y_label.split(';')
-    max_list_size = max(len(x_axis_list), len(y_axis_list), len(x_label_list), len(y_label_list))
-    last_x_axis = x_axis_list[-1]
-    last_y_axis = y_axis_list[-1]
-    last_x_label = x_label_list[-1]
-    last_y_label = y_label_list[-1]
-    for i in range(max_list_size - len(x_axis_list)):
-        x_axis_list.append(last_x_axis)
-    for i in range(max_list_size - len(y_axis_list)):
-        y_axis_list.append(last_y_axis)
-    for i in range(max_list_size - len(x_label_list)):
-        x_label_list.append(last_x_label)
-    for i in range(max_list_size - len(y_label_list)):
-        y_label_list.append(last_y_label)
-    multiple_plots = max_list_size > 1
-    return zip(x_axis_list, y_axis_list, x_label_list, y_label_list), multiple_plots
-
-
 def run_test(json_path):
-    station_list, simulation_time, plot_params, is_separate_run = get_scenario_directly_from_json(json_path)
-    run_simulation(station_list, simulation_time, plot_params=plot_params, is_separate_run=is_separate_run)
+    simulation_time, plot_params, is_separate_run, scenario_runs = get_scenario_directly_from_json(
+        json_path)
 
-
-class SimulationRunnerWorker(QThread):
-    debug_signal = pyqtSignal(str)
-    stations_list = None
-    simulation_time = None
-
-    def run(self) -> None:
-        run_simulation(self.stations_list, self.simulation_time, None)
-
-    def raise_signal(self, message):
-        self.debug_signal.emit(message)
-
-    def set_simulation_params(self, stations_list, simulation_time):
-        self.stations_list = stations_list
-        self.simulation_time = simulation_time
+    run_simulation(simulation_time, plot_params=plot_params, is_separate_run=is_separate_run,
+                   scenario_runs=scenario_runs)
 
 
 if __name__ == '__main__':
-    a = 10 ** 100
-    b = 10 ** 90
-    print(a / b)
+    p = os.getcwd() + '/sim_configs/' + 'fixed_muting_fbe_test/fixed_muting_fbe_test.json'
+    get_scenario_directly_from_json(p)
+    lista = get_station_list_from_json_lists()
+    print(lista)
