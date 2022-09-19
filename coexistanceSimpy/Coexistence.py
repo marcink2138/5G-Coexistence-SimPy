@@ -133,15 +133,15 @@ class Station:
                     if all_waited <= Times.t_difs:
                         self.back_off_time -= Times.t_difs
                         station_log(self,
-                            f"Interupted in DIFS ({Times.t_difs}), backoff {self.back_off_time}, already waited: {all_waited}")
+                                    f"Interupted in DIFS ({Times.t_difs}), backoff {self.back_off_time}, already waited: {all_waited}")
                     else:
                         back_waited = all_waited - Times.t_difs
                         slot_waited = int(back_waited / Times.t_slot)
                         self.back_off_time -= ((slot_waited * Times.t_slot) + Times.t_difs)
                         station_log(self,
-                            f"Completed slots(9us) {slot_waited} = {(slot_waited * Times.t_slot)}  plus DIFS time {Times.t_difs}")
+                                    f"Completed slots(9us) {slot_waited} = {(slot_waited * Times.t_slot)}  plus DIFS time {Times.t_difs}")
                         station_log(self,
-                            f"Backoff decresed by {((slot_waited * Times.t_slot) + Times.t_difs)} new Backoff {self.back_off_time}")
+                                    f"Backoff decresed by {((slot_waited * Times.t_slot) + Times.t_difs)} new Backoff {self.back_off_time}")
                     self.first_interrupt = False
 
     def send_frame(self):
@@ -314,11 +314,12 @@ class Gnb:
 
                 self.time_to_next_sync_slot = self.next_sync_slot_boundry - self.env.now
 
-                station_log(self, f'Backoff = {self.back_off_time} , and time to next slot: {self.time_to_next_sync_slot}')
+                station_log(self,
+                            f'Backoff = {self.back_off_time} , and time to next slot: {self.time_to_next_sync_slot}')
                 while self.back_off_time >= self.time_to_next_sync_slot:
                     self.time_to_next_sync_slot += self.config_nr.synchronization_slot_duration
                     station_log(self,
-                        f'Backoff > time to sync slot: new time to next possible sync +1000 = {self.time_to_next_sync_slot}')
+                                f'Backoff > time to sync slot: new time to next possible sync +1000 = {self.time_to_next_sync_slot}')
 
                 gap_time = self.time_to_next_sync_slot - self.back_off_time
                 station_log(self, f"Waiting gap period of : {gap_time} us")
@@ -363,7 +364,8 @@ class Gnb:
 
                     if already_waited <= prioritization_period_time:
                         self.back_off_time -= prioritization_period_time
-                        station_log(self, f"Interrupted in PP time {prioritization_period_time}, backoff {self.back_off_time}")
+                        station_log(self,
+                                    f"Interrupted in PP time {prioritization_period_time}, backoff {self.back_off_time}")
                     else:
                         slots_waited = int(
                             (already_waited - prioritization_period_time) / self.config_nr.observation_slot_duration)
@@ -371,9 +373,9 @@ class Gnb:
                         self.back_off_time -= ((
                                                        slots_waited * self.config_nr.observation_slot_duration) + prioritization_period_time)
                         station_log(self,
-                            f"Completed slots(9us) {slots_waited} = {(slots_waited * self.config_nr.observation_slot_duration)}  plus PP time {prioritization_period_time}")
+                                    f"Completed slots(9us) {slots_waited} = {(slots_waited * self.config_nr.observation_slot_duration)}  plus PP time {prioritization_period_time}")
                         station_log(self,
-                            f"Backoff decresed by {(slots_waited * self.config_nr.observation_slot_duration) + prioritization_period_time} new Backoff {self.back_off_time}")
+                                    f"Backoff decresed by {(slots_waited * self.config_nr.observation_slot_duration) + prioritization_period_time} new Backoff {self.back_off_time}")
 
                     # log(self, f"already waited {already_waited} Backoff us, new Backoff {self.back_off_time}")
                     self.back_off_time += prioritization_period_time  # addnin new PP before next weiting
@@ -413,7 +415,8 @@ class Gnb:
 
                     if already_waited <= prioritization_period_time:
                         self.back_off_time -= prioritization_period_time
-                        station_log(self, f"Interrupted in PP time {prioritization_period_time}, backoff {self.back_off_time}")
+                        station_log(self,
+                                    f"Interrupted in PP time {prioritization_period_time}, backoff {self.back_off_time}")
                     else:
                         slots_waited = int(
                             (already_waited - prioritization_period_time) / self.config_nr.observation_slot_duration)
@@ -421,9 +424,9 @@ class Gnb:
                         self.back_off_time -= ((
                                                        slots_waited * self.config_nr.observation_slot_duration) + prioritization_period_time)
                         station_log(self,
-                            f"Completed slots(9us) {slots_waited} = {(slots_waited * self.config_nr.observation_slot_duration)}  plus PP time {prioritization_period_time}")
+                                    f"Completed slots(9us) {slots_waited} = {(slots_waited * self.config_nr.observation_slot_duration)}  plus PP time {prioritization_period_time}")
                         station_log(self,
-                            f"Backoff decresed by {(slots_waited * self.config_nr.observation_slot_duration) + prioritization_period_time} new Backoff {self.back_off_time}")
+                                    f"Backoff decresed by {(slots_waited * self.config_nr.observation_slot_duration) + prioritization_period_time} new Backoff {self.back_off_time}")
 
                     self.first_interrupt = False
                     self.waiting_backoff = False
@@ -793,6 +796,7 @@ class FBE(ABC):
         self.offset = offset
         self.run_with_offset = self.offset > 0
         self.log_name = log_name
+        self.handle_sim_end = False
 
     @abstractmethod
     def start(self):
@@ -823,12 +827,13 @@ class FBE(ABC):
             end = self.env.now
             diff = end - init
             station_log(self, 'CCA interrupted, skipping next FFP')
+            self.add_event_to_dict(EventType.CCA_INTERRUPTED.name)
+            self.channel.cca_list_NR_FBE.remove(self)
             if diff == 0:
                 yield self.env.timeout(self.timers.cca)
             else:
                 yield self.env.timeout(diff)
             self.skip_next_cot = True
-            self.channel.cca_list_NR_FBE.remove(self)
 
     def process_init_offset(self):
         if self.run_with_offset:
@@ -848,33 +853,50 @@ class FBE(ABC):
     def send_transmission(self):
         self.channel.tx_list_NR_FBE.append(self)
         with self.channel.tx_lock.request() as request_token:
+            transmission_start = self.env.now
             try:
                 station_log(self, f"Starting transmission")
                 request = yield request_token | self.env.timeout(0)
+                self.interrupt_cca()
                 if request_token not in request:
-                    # log(self, f"Collision in channel")
-                    for station in self.channel.tx_list_NR_FBE:
-                        if station != self and station.process.is_alive:
-                            station.process.interrupt()
-                    raise simpy.Interrupt("Collision in channel")
-                for station in self.channel.cca_list_NR_FBE:
-                    if station.process.is_alive:
-                        station.process.interrupt()
-                now = self.env.now
-                if self.channel.simulation_time - now < self.timers.cot:
-                    self.sent_completed(True)
-                yield self.env.timeout(self.timers.cot)
+                    self.interrupt_transmissions()
+                remained_time = self.channel.simulation_time - transmission_start
+                if remained_time < self.timers.cot:
+                    station_log(self,
+                                f"Transmission interrupted by simulation end. COT len = {self.timers.cot}. "
+                                f"Time remained: {remained_time}")
+                    self.handle_sim_end = True
+                    yield self.env.timeout(remained_time)
+                else:
+                    yield self.env.timeout(self.timers.cot)
                 if len(self.channel.tx_list_NR_FBE) > 1:
+                    station_log(self, f"Collision in channel detected after transmission")
                     self.sent_failed()
                 else:
-                    self.sent_completed()
+                    self.sent_completed(remained_time)
                 self.channel.tx_list_NR_FBE.remove(self)
 
             except simpy.Interrupt:
-                station_log(self, f"Collision in channel")
+                now = self.env.now
+                remained_transmission_time = self.timers.cot - (now - transmission_start)
+                station_log(self, f"Collision in channel detected during transmission. "
+                                  f"Time to end transmission: {remained_transmission_time}")
                 yield self.env.timeout(self.timers.cot)
                 self.channel.tx_list_NR_FBE.remove(self)
                 self.sent_failed()
+
+    def interrupt_cca(self):
+        for station in self.channel.cca_list_NR_FBE:
+            if station.process.is_alive:
+                station_log(self, f"Interrupting CCA process of station: {station.name}")
+                station.process.interrupt()
+
+    def interrupt_transmissions(self):
+        for station in self.channel.tx_list_NR_FBE:
+            if station != self and station.process.is_alive:
+                station_log(self, f"Interrupting transmission process of station: {station.name}")
+                station.process.interrupt()
+        raise simpy.Interrupt("Collision in channel")
 
     def sent_failed(self):
         station_log(self, f"Transmission failed")
@@ -900,15 +922,15 @@ class FBE(ABC):
         self.process = self.env.process(self.process_cca())
         yield self.process
 
-    def sent_completed(self, interrupted_by_simulation_end=False):
+    def sent_completed(self, sim_end_air_time=None):
         station_log(self, f"Successfully sent transmission")
         self.add_event_to_dict(EventType.SUCCESSFUL_TRANSMISSION.name)
-        if interrupted_by_simulation_end:
-            self.air_time = self.succeeded_transmissions * self.timers.cot + self.channel.simulation_time - self.env.now
+        if self.handle_sim_end:
+            self.air_time += sim_end_air_time
             self.succeeded_transmissions += 1
         else:
             self.succeeded_transmissions += 1
-            self.air_time = self.succeeded_transmissions * self.timers.cot
+            self.air_time += self.timers.cot
         self.channel.succeeded_transmissions_NR_FBE += 1
 
     def get_transmitters_list_len_sum(self):
@@ -919,6 +941,9 @@ class FBE(ABC):
 
     def skip_cot(self):
         yield self.env.timeout(self.timers.cot)
+
+    def set_log_name(self, log_name):
+        self.log_name = log_name
 
     def __str__(self) -> str:
         return "(FBE) "
@@ -963,7 +988,7 @@ class RandomMutingFBE(FBE):
             if self.selected_number_of_frames_in_a_row == 0:
                 self.selected_number_of_muted_periods = select_random_number(self.max_muted_periods)
                 station_log(self,
-                    f"Selecting number of muted periods. Selected number: {self.selected_number_of_muted_periods}")
+                            f"Selecting number of muted periods. Selected number: {self.selected_number_of_muted_periods}")
                 for i in range(0, self.selected_number_of_muted_periods):
                     station_log(self, f"Skipping frame... {i + 1}/{self.selected_number_of_muted_periods}")
                     yield self.env.process(self.fbe_skip_process())
@@ -976,8 +1001,8 @@ class RandomMutingFBE(FBE):
                     self.selected_number_of_frames_in_a_row = \
                         select_random_number(self.max_frames_in_a_row)
                     station_log(self,
-                        f'Selecting number of frames which will be transmitted in the row. '
-                        f'Selected number: {self.selected_number_of_frames_in_a_row} ')
+                                f'Selecting number of frames which will be transmitted in the row. '
+                                f'Selected number: {self.selected_number_of_frames_in_a_row} ')
 
                 station_log(self, f'Continuous frames to go: {self.selected_number_of_frames_in_a_row}')
                 yield self.env.process(self.fbe_transmission_process())
@@ -1062,8 +1087,8 @@ class FixedMutingFBE(FBE):
         while True:
             if self.muted_periods_to_go > 0:
                 station_log(self,
-                    f'Waiting muted periods after successful transmission. Muted periods to go '
-                    f'{self.muted_periods_to_go}')
+                            f'Waiting muted periods after successful transmission. Muted periods to go '
+                            f'{self.muted_periods_to_go}')
                 if self.muted_periods_to_go == 1:
                     yield self.env.process(self.fbe_skip_process())
                 else:
@@ -1088,8 +1113,8 @@ class FixedMutingFBE(FBE):
         else:
             yield self.env.timeout(self.timers.cca)
 
-    def sent_completed(self, interrupted_by_simulation_end=False):
-        super().sent_completed(interrupted_by_simulation_end)
+    def sent_completed(self, sim_end_air_time=None):
+        super().sent_completed(sim_end_air_time)
         self.muted_periods_to_go = self.max_number_of_muted_periods
 
     def get_fbe_version(self):
@@ -1156,16 +1181,16 @@ class DeterministicBackoffFBE(FBE):
         else:
             # In our case simply setting counter to 0 and restarting procedure in next ffp
             station_log(self,
-                f'Retransmission_counter exceeded maximum number of retransmissions'
-                f' {self.retransmission_counter}/{self.maximum_number_of_retransmissions}.'
-                f'Dropping frame...')
+                        f'Retransmission_counter exceeded maximum number of retransmissions'
+                        f' {self.retransmission_counter}/{self.maximum_number_of_retransmissions}.'
+                        f'Dropping frame...')
             self.retransmission_counter = 0
             self.interrupt_counter = 0
             self.drop_frame = True
             self.select_backoff()
 
-    def sent_completed(self, interrupted_by_simulation_end=False):
-        super().sent_completed(interrupted_by_simulation_end)
+    def sent_completed(self, sim_end_air_time=None):
+        super().sent_completed(sim_end_air_time)
         self.retransmission_counter = 0
         self.select_backoff()
 
@@ -1210,6 +1235,7 @@ class FBEVersion(Enum):
 class EventType(Enum):
     SUCCESSFUL_TRANSMISSION = 1
     CHANNEL_COLLISION = 2
+    CCA_INTERRUPTED = 3
 
 
 @dataclass()

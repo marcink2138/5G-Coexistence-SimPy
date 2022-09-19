@@ -4,7 +4,7 @@ import duckdb
 import pandas as pd
 import simpy
 from matplotlib import pyplot as plt
-from logger_util import enable_logging, log, disable_logging
+from logger_util import enable_logging, log
 
 import coexistanceSimpy
 from coexistanceSimpy import FBEVersion
@@ -15,6 +15,7 @@ from coexistanceSimpy.scenario_creator_helper import get_station_list_from_json_
 marks = ['o', 'v', 's', 'P', '*', 'x', '+']
 colors = ['r', 'g', 'b', 'c', 'm', 'y', 'k']
 max_ffp = 10000
+log_name = "default"
 
 
 def get_total_run_number(stations_list):
@@ -37,6 +38,7 @@ def set_env_channel(stations_list, env, channel):
     for station in stations_list:
         station.set_channel(channel)
         station.set_environment(env)
+        station.set_log_name(log_name)
 
 
 def collect_results(stations_list, result_dict, simulation_time):
@@ -121,8 +123,8 @@ def run_simulation(simulation_time, scenario_runs=1, output_params=None, is_sepa
     path_to_folder = get_path_to_folder(output_params)
     if output_params.enable_logging:
         enable_logging(output_params.file_name, path_to_folder)
-    else:
-        disable_logging()
+        global log_name
+        log_name = output_params.file_name
     result_dict = {"station_name": [],
                    "air_time": [],
                    "cot": [],
@@ -137,9 +139,11 @@ def run_simulation(simulation_time, scenario_runs=1, output_params=None, is_sepa
                    "summary_air_time": []}
     event_dict_list = []
     db_fbe_backoff_changes_dict_list = []
+    print(f"Test name: {output_params.file_name} in folder: {output_params.folder_name}")
+    log(f"Test name: {output_params.file_name} in folder: {output_params.folder_name}", log_name)
     for i in range(scenario_runs):
         print(f"Running scenario : {i + 1}/{scenario_runs}")
-        log(f"Running scenario : {i + 1}/{scenario_runs}")
+        log(f"Running scenario : {i + 1}/{scenario_runs}", log_name)
         stations_list = get_station_list_from_json_lists()
         if is_separate_run:
             separate_runner(stations_list, simulation_time, result_dict, event_dict_list,
@@ -153,15 +157,15 @@ def run_simulation(simulation_time, scenario_runs=1, output_params=None, is_sepa
     if output_params is not None:
         process_results(df, output_params)
         sim_results_path = path_to_folder + output_params.file_name + "_df.csv"
-        log(f"Saving simulation results to:{sim_results_path} ...")
+        log(f"Saving simulation results to:{sim_results_path} ...", log_name)
         df.to_csv(sim_results_path)
         events_df = merge_dicts_into_df(event_dict_list)
         events_path = path_to_folder + output_params.file_name + "_events.csv"
-        log(f"Saving simulation events to:{events_path} ...")
+        log(f"Saving simulation events to:{events_path} ...", log_name)
         events_df.to_csv(events_path)
         db_fbe_backoff_changes_df = merge_dicts_into_df(db_fbe_backoff_changes_dict_list)
         db_fbe_backoff_changes_path = path_to_folder + output_params.file_name + "_db_fbe_backoff.csv"
-        log(f"Saving db fbe backoff changes to: {db_fbe_backoff_changes_path} ...")
+        log(f"Saving db fbe backoff changes to: {db_fbe_backoff_changes_path} ...", log_name)
         db_fbe_backoff_changes_df.to_csv(db_fbe_backoff_changes_path)
 
 
@@ -193,7 +197,7 @@ def runner(simulation_time, stations_list, result_dict, event_dict_list, db_fbe_
     print(f'Total run number: {total_run_number}')
     for run_number in range(total_run_number):
         print(f'Running simulation:{run_number + 1}/{total_run_number}')
-        log(f'Running simulation:{run_number + 1}/{total_run_number}')
+        log(f'Running simulation:{run_number + 1}/{total_run_number}', log_name)
         env = simpy.Environment()
         channel = coexistanceSimpy.Channel(None, simpy.Resource(env, capacity=1), 0, 0, None, None, None, None, None,
                                            simulation_time)
@@ -223,7 +227,7 @@ def separate_runner(stations_list, simulation_time, result_dict, event_dict_list
 
 
 def process_results(df, output_params: OutputParams):
-    log("Processing results ...")
+    log("Processing results ...", log_name)
     if output_params.all_in_one is not None:
         plot_all_in_one(df, output_params)
     if output_params.fairness is not None:
@@ -353,9 +357,3 @@ def run_test(json_path):
     run_simulation(simulation_time, output_params=output_params, is_separate_run=is_separate_run,
                    scenario_runs=scenario_runs)
 
-
-if __name__ == '__main__':
-    p = os.getcwd() + '/sim_configs/' + 'fixed_muting_fbe_test/fixed_muting_fbe_test.json'
-    get_scenario_directly_from_json(p)
-    lista = get_station_list_from_json_lists()
-    print(lista)
