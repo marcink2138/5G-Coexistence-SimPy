@@ -866,7 +866,9 @@ class FBE(ABC):
                                 f"Transmission interrupted by simulation end. COT len = {self.timers.cot}. "
                                 f"Time remained: {remained_time}")
                     self.handle_sim_end = True
-                    yield self.env.timeout(remained_time)
+                    # When simpy env reaches sim end time whole simulation will be shut down.
+                    # Handle this by waiting for 1 us less
+                    yield self.env.timeout(remained_time - 1)
                 else:
                     yield self.env.timeout(self.timers.cot)
                 if len(self.channel.tx_list_NR_FBE) > 1:
@@ -874,6 +876,9 @@ class FBE(ABC):
                     self.sent_failed()
                 else:
                     self.sent_completed(remained_time)
+
+                if self.handle_sim_end is True:
+                    yield self.env.timeout(1)
                 self.channel.tx_list_NR_FBE.remove(self)
 
             except simpy.Interrupt:
@@ -926,9 +931,13 @@ class FBE(ABC):
         station_log(self, f"Successfully sent transmission")
         self.add_event_to_dict(EventType.SUCCESSFUL_TRANSMISSION.name)
         if self.handle_sim_end:
+            station_log(self, f"Current air time: {self.air_time}. Airtime to add: {sim_end_air_time}. "
+                              f"Sum : {self.air_time + sim_end_air_time}")
             self.air_time += sim_end_air_time
             self.succeeded_transmissions += 1
         else:
+            station_log(self, f"Current air time: {self.air_time}. Airtime to add: {self.timers.cot}. "
+                              f"Sum : {self.air_time + self.timers.cot}")
             self.succeeded_transmissions += 1
             self.air_time += self.timers.cot
         self.channel.succeeded_transmissions_NR_FBE += 1
@@ -1138,9 +1147,6 @@ class DeterministicBackoffFBE(FBE):
         self.interrupt_counter = 0
         self.drop_frame = False
         self.init_cca = True
-        self.backoff_change_dict = {"time": [],
-                                    "backoff_value": []
-                                    }
 
     def start(self):
         yield self.env.process(self.process_init_offset())

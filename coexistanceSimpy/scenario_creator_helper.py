@@ -178,7 +178,9 @@ def get_scenario_directly_from_json(json_path):
     output_params = build_output_params_obj(output_params_json)
     is_separate_run = j["RUN_SEPARATELY"] if "RUN_SEPARATELY" in j else False
     scenario_runs = j["SCENARIO_RUNS"] if "SCENARIO_RUNS" in j else 1
-    return simulation_time, output_params, is_separate_run, scenario_runs
+    contains_db_fbe = len(db_fbe_json_list) > 0
+    simulation_params = SimulationParams(simulation_time, output_params, is_separate_run, scenario_runs, contains_db_fbe)
+    return simulation_params
 
 
 def build_output_params_obj(output_params_json):
@@ -296,3 +298,12 @@ class OutputParams:
     summary_airtime: dict
     separate_plots: dict
     enable_logging: bool
+
+
+@dataclass
+class SimulationParams:
+    simulation_time: int
+    output_params: OutputParams
+    is_separate_run: bool
+    scenario_runs: int
+    contains_db_fbe: bool

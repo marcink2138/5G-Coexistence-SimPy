@@ -5,6 +5,7 @@ import pandas as pd
 import simpy
 from matplotlib import pyplot as plt
 from logger_util import enable_logging, log
+import numpy as np
 
 import coexistanceSimpy
 from coexistanceSimpy import FBEVersion
@@ -119,7 +120,11 @@ def group_stations_by_version(db_fbe_stations, fixed_muting_fbe_stations, floati
             db_fbe_stations.append(station)
 
 
-def run_simulation(simulation_time, scenario_runs=1, output_params=None, is_separate_run=False):
+def run_simulation(simulation_params):
+    output_params = simulation_params.output_params
+    scenario_runs = simulation_params.scenario_runs
+    is_separate_run = simulation_params.is_separate_run
+    simulation_time = simulation_params.simulation_time
     path_to_folder = get_path_to_folder(output_params)
     if output_params.enable_logging:
         enable_logging(output_params.file_name, path_to_folder)
@@ -163,10 +168,13 @@ def run_simulation(simulation_time, scenario_runs=1, output_params=None, is_sepa
         events_path = path_to_folder + output_params.file_name + "_events.csv"
         log(f"Saving simulation events to:{events_path} ...", log_name)
         events_df.to_csv(events_path)
-        db_fbe_backoff_changes_df = merge_dicts_into_df(db_fbe_backoff_changes_dict_list)
-        db_fbe_backoff_changes_path = path_to_folder + output_params.file_name + "_db_fbe_backoff.csv"
-        log(f"Saving db fbe backoff changes to: {db_fbe_backoff_changes_path} ...", log_name)
-        db_fbe_backoff_changes_df.to_csv(db_fbe_backoff_changes_path)
+        if simulation_params.contains_db_fbe:
+            db_fbe_backoff_changes_df = merge_dicts_into_df(db_fbe_backoff_changes_dict_list)
+            db_fbe_backoff_changes_path = path_to_folder + output_params.file_name + "_db_fbe_backoff.csv"
+            log(f"Saving db fbe backoff changes to: {db_fbe_backoff_changes_path} ...", log_name)
+            db_fbe_backoff_changes_df.to_csv(db_fbe_backoff_changes_path)
+            log("Plotting db fbe backoff changes", log_name)
+            plot_db_fbe_backoff_changes(db_fbe_backoff_changes_dict_list, output_params)
 
 
 def prepare_dataframe_after_many_scenario_runs(df):
@@ -238,15 +246,35 @@ def process_results(df, output_params: OutputParams):
         plot_separate(df, output_params)
 
 
+def plot_db_fbe_backoff_changes(db_fbe_backoff_changes_dict_list, output_params):
+    for run_number, db_fbe_backoff_changes_dict in enumerate(db_fbe_backoff_changes_dict_list, start=1):
+        df = pd.DataFrame.from_dict(db_fbe_backoff_changes_dict)
+        fig, ax = plt.subplots()
+        i = 0
+        for key, grp in df.groupby(["station_name"]):
+            ax = grp.plot(ax=ax, marker=marks[i], x="time", y="backoff", label=key, c=colors[i])
+            i += 1
+
+        ax.set(xlabel="time", ylabel="backoff", title="DB FBE backoff")
+        plt.tight_layout()
+        save_plot(output_params, "all_in_one", run_number)
+
+
 def plot_separate(df: pd.DataFrame, output_params: OutputParams):
     axis_label_zip = zip_plot_params(output_params.all_in_one["x_axis"], output_params.all_in_one["x_label"],
                                      output_params.all_in_one["y_axis"], output_params.all_in_one["y_label"])
     plot_num = 0
+    is_ci_enabled = output_params.separate_plots[
+        "is_ci_enabled"] if "is_ci_enabled" in output_params.separate_plots else False
     for x_axis, x_label, y_axis, y_label in axis_label_zip:
 
         for key, grp in df.groupby(["station_name"]):
             ax = grp.plot(marker=marks[0], x=x_axis, y=y_axis, label=key, c=colors[0])
             ax.set(xlabel=x_label, ylabel=y_label, title=output_params.all_in_one["title"])
+            if is_ci_enabled:
+                x = grp[x_axis].tolist()
+                y = grp[y_axis].tolist()
+                add_confidence_interval(x, y, ax, colors[0])
             if y_axis == "normalized_airtime":
                 ax.set_ylim(bottom=0)
             plt.tight_layout()
@@ -258,12 +286,17 @@ def plot_all_in_one(df: pd.DataFrame, output_params: OutputParams):
     axis_label_zip = zip_plot_params(output_params.all_in_one["x_axis"], output_params.all_in_one["x_label"],
                                      output_params.all_in_one["y_axis"], output_params.all_in_one["y_label"])
     plot_num = 0
+    is_ci_enabled = output_params.all_in_one["is_ci_enabled"] if "is_ci_enabled" in output_params.all_in_one else False
     for x_axis, x_label, y_axis, y_label in axis_label_zip:
         fig, ax = plt.subplots()
         i = 0
 
         for key, grp in df.groupby(["station_name"]):
             ax = grp.plot(ax=ax, marker=marks[i], x=x_axis, y=y_axis, label=key, c=colors[i])
+            if is_ci_enabled:
+                x = grp[x_axis].tolist()
+                y = grp[y_axis].tolist()
+                add_confidence_interval(x, y, ax, colors[i])
             i += 1
 
         ax.set(xlabel=x_label, ylabel=y_label, title=output_params.all_in_one["title"])
@@ -272,6 +305,11 @@ def plot_all_in_one(df: pd.DataFrame, output_params: OutputParams):
         plt.tight_layout()
         save_plot(output_params, "all_in_one", plot_num)
         plot_num += 1
+
+
+def add_confidence_interval(x, y, ax, color):
+    ci = 1.96 * np.std(y) / np.sqrt(len(x))
+    ax.fill_between(x, (y - ci), (y + ci), color=color, alpha=.1)
 
 
 def plot_fairness(df: pd.DataFrame, output_params: OutputParams):
@@ -294,11 +332,17 @@ def plot_summary_airtime(df: pd.DataFrame, output_params: OutputParams):
     x_axis_label_zip = zip_plot_params(output_params.summary_airtime["x_axis"],
                                        output_params.summary_airtime["x_label"])
     plot_num = 0
+    is_ci_enabled = output_params.summary_airtime[
+        "is_ci_enabled"] if "is_ci_enabled" in output_params.summary_airtime else False
     for x_axis, x_label in x_axis_label_zip:
         fig, ax = plt.subplots()
         i = 0
         for key, grp in df.groupby(["fbe_version"]):
             ax = grp.plot(ax=ax, marker=marks[i], x=x_axis, y='summary_air_time', label=key, c=colors[i])
+            if is_ci_enabled:
+                x = grp[x_axis].tolist()
+                y = grp["summary_air_time"].tolist()
+                add_confidence_interval(x, y, ax, colors[i])
             i += 1
         ax.set(xlabel=x_label, ylabel='Summary Airtime', title=output_params.summary_airtime["title"])
         plt.tight_layout()
@@ -351,9 +395,12 @@ def zip_plot_params(*params):
 
 
 def run_test(json_path):
-    simulation_time, output_params, is_separate_run, scenario_runs = get_scenario_directly_from_json(
+    simulation_params = get_scenario_directly_from_json(
         json_path)
 
-    run_simulation(simulation_time, output_params=output_params, is_separate_run=is_separate_run,
-                   scenario_runs=scenario_runs)
+    run_simulation(simulation_params)
 
+
+if __name__ == '__main__':
+    a = [1, 2, 3, 4]
+    print(np.std(a))

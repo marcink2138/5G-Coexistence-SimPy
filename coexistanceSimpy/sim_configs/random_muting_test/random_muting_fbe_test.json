@@ -26,7 +26,8 @@
       "y_axis": "normalized_air_time;successful_transmissions",
       "title": "Random-muting FBE",
       "x_label": "Normalized cot",
-      "y_label": "Normalized airtime;Successful transmissions"
+      "y_label": "Normalized airtime;Successful transmissions",
+      "is_ci_enabled": true
     }
   }
 }

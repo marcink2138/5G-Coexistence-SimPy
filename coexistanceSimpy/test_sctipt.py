@@ -21,15 +21,15 @@ def get_json_path(sim_config_name):
 
 
 if __name__ == '__main__':
-    run_test(get_json_path(fixed_muting_test_scenario))
-    for floating_cot_fixed_ffp_scenario_path in floating_cot_fixed_ffp_scenarios:
-        run_test(get_json_path(floating_cot_fixed_ffp_scenario_path))
-    for floating_ffp_fixed_cot_scenario_path in floating_ffp_fixed_cot_scenarios:
-        run_test(get_json_path(floating_ffp_fixed_cot_scenario_path))
-    for four_stations_no_offset_scenario in four_stations_no_offset_scenarios:
-        run_test(get_json_path(four_stations_no_offset_scenario))
-    for four_stations_with_offset_scenario in four_stations_with_offset_scenarios:
-        run_test(get_json_path(four_stations_with_offset_scenario))
-    run_test(get_json_path(random_offset_five_stations_scenario))
+    # run_test(get_json_path(fixed_muting_test_scenario))
+    # for floating_cot_fixed_ffp_scenario_path in floating_cot_fixed_ffp_scenarios:
+    #     run_test(get_json_path(floating_cot_fixed_ffp_scenario_path))
+    # for floating_ffp_fixed_cot_scenario_path in floating_ffp_fixed_cot_scenarios:
+    #     run_test(get_json_path(floating_ffp_fixed_cot_scenario_path))
+    # for four_stations_no_offset_scenario in four_stations_no_offset_scenarios:
+    #     run_test(get_json_path(four_stations_no_offset_scenario))
+    # for four_stations_with_offset_scenario in four_stations_with_offset_scenarios:
+    #     run_test(get_json_path(four_stations_with_offset_scenario))
+    # run_test(get_json_path(random_offset_five_stations_scenario))
     run_test(get_json_path(floating_fbe_test_scenario))
     run_test(get_json_path(random_muting_test_scenario))

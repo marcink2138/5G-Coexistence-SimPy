@@ -40,7 +40,8 @@
       "y_axis": "normalized_air_time",
       "title": "Floating FBE",
       "x_label": "Normalized cot",
-      "y_label": "Normalized airtime"
+      "y_label": "Normalized airtime",
+      "is_ci_enabled": true
     }
   }
 }
