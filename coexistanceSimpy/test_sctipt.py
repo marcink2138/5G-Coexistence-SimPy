@@ -13,7 +13,7 @@ random_offset_five_stations_scenario = 'random_offset/random_offset_five_station
 floating_fbe_test_scenario = 'floating_fbe_test/floating_fbe_test.json'
 random_muting_test_scenario = 'random_muting_test/random_muting_fbe_test.json'
 fixed_muting_test_scenario = 'fixed_muting_fbe_test/fixed_muting_fbe_test.json'
-
+random_muting_test_v3_scenario = 'random_muting_test_v3/random_muting_fbe_test.json'
 
 def get_json_path(sim_config_name):
     path = os.getcwd() + '/sim_configs/' + sim_config_name
@@ -21,7 +21,8 @@ def get_json_path(sim_config_name):
 
 
 if __name__ == '__main__':
-    # run_test(get_json_path(fixed_muting_test_scenario))
+    #run_test(get_json_path(fixed_muting_test_scenario))
+    run_test(get_json_path(random_muting_test_v3_scenario))
     # for floating_cot_fixed_ffp_scenario_path in floating_cot_fixed_ffp_scenarios:
     #     run_test(get_json_path(floating_cot_fixed_ffp_scenario_path))
     # for floating_ffp_fixed_cot_scenario_path in floating_ffp_fixed_cot_scenarios:
@@ -31,5 +32,5 @@ if __name__ == '__main__':
     # for four_stations_with_offset_scenario in four_stations_with_offset_scenarios:
     #     run_test(get_json_path(four_stations_with_offset_scenario))
     # run_test(get_json_path(random_offset_five_stations_scenario))
-    run_test(get_json_path(floating_fbe_test_scenario))
-    run_test(get_json_path(random_muting_test_scenario))
+    # run_test(get_json_path(floating_fbe_test_scenario))
+    # run_test(get_json_path(random_muting_test_scenario))

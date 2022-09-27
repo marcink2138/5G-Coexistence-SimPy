@@ -173,8 +173,8 @@ def run_simulation(simulation_params):
             db_fbe_backoff_changes_path = path_to_folder + output_params.file_name + "_db_fbe_backoff.csv"
             log(f"Saving db fbe backoff changes to: {db_fbe_backoff_changes_path} ...", log_name)
             db_fbe_backoff_changes_df.to_csv(db_fbe_backoff_changes_path)
-            log("Plotting db fbe backoff changes", log_name)
-            plot_db_fbe_backoff_changes(db_fbe_backoff_changes_dict_list, output_params)
+            # log("Plotting db fbe backoff changes", log_name)
+            # plot_db_fbe_backoff_changes(db_fbe_backoff_changes_dict_list, output_params)
 
 
 def prepare_dataframe_after_many_scenario_runs(df):

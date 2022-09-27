@@ -15,7 +15,7 @@ from datetime import datetime
 
 def station_log(gnb, mes: str) -> None:
     if hasattr(gnb, 'log_name'):
-        logger = logging.getLogger(gnb.log_name)
+        logger = logging.getLogger(gnb.logger_name)
     else:
         logger = logging.getLogger('default')
     logger.info(

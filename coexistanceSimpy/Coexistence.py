@@ -780,45 +780,32 @@ class FBETimers:
 
 
 class FBE(ABC):
-    def __init__(self, name: str, timers: FBETimers, offset=0, log_name='default'):
+    def __init__(self, name: str, timers: FBETimers, offset=0, logger_name='default'):
         self.name = self.__str__() + name
         self.env = None
         self.succeeded_transmissions = 0
         self.failed_transmissions = 0
-        self.failed_transmissions_in_row = 0
         self.channel = None
         self.timers = timers
         self.process = None
         self.transmission_process = None
-        self.transmission_time = 15
         self.skip_next_cot = False
         self.air_time = 0
         self.offset = offset
         self.run_with_offset = self.offset > 0
-        self.log_name = log_name
+        self.logger_name = logger_name
         self.handle_sim_end = False
 
     @abstractmethod
     def start(self):
         pass
 
-    @abstractmethod
-    def get_fbe_version(self):
-        pass
-
-    def set_environment(self, env):
-        self.env = env
-        self.env.process(self.start())
-
-    def set_channel(self, channel):
-        self.channel = channel
-
     def process_cca(self):
         init = self.env.now
         try:
             self.channel.cca_list_NR_FBE.append(self)
             station_log(self, 'Sensing if channel is idle')
-            if len(self.channel.tx_list_NR_FBE) > 0:
+            if self.get_curr_transmissions_list_len_sum() > 0:
                 raise simpy.Interrupt("CCA interrupted!")
             yield self.env.timeout(self.timers.cca)
             self.skip_next_cot = False
@@ -843,7 +830,7 @@ class FBE(ABC):
         yield self.process
 
     def check_collisions(self):
-        lists_len_sum = self.get_transmitters_list_len_sum()
+        lists_len_sum = self.get_curr_transmissions_list_len_sum()
         if lists_len_sum > 1 or lists_len_sum == 0:
             self.sent_failed()
             return False
@@ -859,7 +846,7 @@ class FBE(ABC):
                 request = yield request_token | self.env.timeout(0)
                 self.interrupt_cca()
                 if request_token not in request:
-                    self.interrupt_transmissions()
+                    raise simpy.Interrupt("Collision in channel")
                 remained_time = self.channel.simulation_time - transmission_start
                 if remained_time < self.timers.cot:
                     station_log(self,
@@ -871,7 +858,7 @@ class FBE(ABC):
                     yield self.env.timeout(remained_time - 1)
                 else:
                     yield self.env.timeout(self.timers.cot)
-                if len(self.channel.tx_list_NR_FBE) > 1:
+                if self.get_curr_transmissions_list_len_sum() > 1:
                     station_log(self, f"Collision in channel detected after transmission")
                     self.sent_failed()
                 else:
@@ -882,13 +869,13 @@ class FBE(ABC):
                 self.channel.tx_list_NR_FBE.remove(self)
 
             except simpy.Interrupt:
+                self.sent_failed()
                 now = self.env.now
                 remained_transmission_time = self.timers.cot - (now - transmission_start)
                 station_log(self, f"Collision in channel detected during transmission. "
                                   f"Time to end transmission: {remained_transmission_time}")
                 yield self.env.timeout(self.timers.cot)
                 self.channel.tx_list_NR_FBE.remove(self)
-                self.sent_failed()
 
     def interrupt_cca(self):
         for station in self.channel.cca_list_NR_FBE:
@@ -897,10 +884,10 @@ class FBE(ABC):
                 station.process.interrupt()
 
     def interrupt_transmissions(self):
-        for station in self.channel.tx_list_NR_FBE:
-            if station != self and station.process.is_alive:
-                station_log(self, f"Interrupting transmission process of station: {station.name}")
-                station.process.interrupt()
+        # for station in self.channel.tx_list_NR_FBE:
+        #     if station != self and station.transmission_process.is_alive:
+        #         station_log(self, f"Interrupting transmission process of station: {station.name}")
+        #         station.process.interrupt()
         raise simpy.Interrupt("Collision in channel")
 
     def sent_failed(self):
@@ -914,13 +901,13 @@ class FBE(ABC):
         self.channel.event_dict["station_name"].append(self.name)
         self.channel.event_dict["event_type"].append(event_type)
 
-    def fbe_skip_process(self):
+    def ffp_skip_transmission(self):
         yield self.env.process(self.skip_cot())
         yield self.env.process(self.wait_until_cca())
         self.process = self.env.process(self.process_cca())
         yield self.process
 
-    def fbe_transmission_process(self):
+    def ffp_with_transmission(self):
         self.transmission_process = self.env.process(self.send_transmission())
         yield self.transmission_process
         yield self.env.process(self.wait_until_cca())
@@ -942,7 +929,7 @@ class FBE(ABC):
             self.air_time += self.timers.cot
         self.channel.succeeded_transmissions_NR_FBE += 1
 
-    def get_transmitters_list_len_sum(self):
+    def get_curr_transmissions_list_len_sum(self):
         return len(self.channel.tx_list) + len(self.channel.tx_list_NR) + len(self.channel.tx_list_NR_FBE)
 
     def wait_until_cca(self):
@@ -952,7 +939,18 @@ class FBE(ABC):
         yield self.env.timeout(self.timers.cot)
 
     def set_log_name(self, log_name):
-        self.log_name = log_name
+        self.logger_name = log_name
+
+    @abstractmethod
+    def get_fbe_version(self):
+        pass
+
+    def set_environment(self, env):
+        self.env = env
+        self.env.process(self.start())
+
+    def set_channel(self, channel):
+        self.channel = channel
 
     def __str__(self) -> str:
         return "(FBE) "
@@ -967,9 +965,9 @@ class StandardFBE(FBE):
         yield self.env.process(self.process_init_offset())
         while True:
             if self.skip_next_cot:
-                yield self.env.process(self.fbe_skip_process())
+                yield self.env.process(self.ffp_skip_transmission())
             else:
-                yield self.env.process(self.fbe_transmission_process())
+                yield self.env.process(self.ffp_with_transmission())
 
     def get_fbe_version(self):
         return FBEVersion.STANDARD_FBE
@@ -986,48 +984,53 @@ class RandomMutingFBE(FBE):
 
     def __init__(self, name: str, timers: FBETimers, offset=0, max_frames_in_a_row=5, max_muted_periods=5):
         super().__init__(name, timers, offset)
-        self.max_frames_in_a_row = max_frames_in_a_row
+        self.max_transmissions_in_a_row = max_frames_in_a_row
         self.max_muted_periods = max_muted_periods
-        self.selected_number_of_frames_in_a_row = -1
-        self.selected_number_of_muted_periods = 0
+        self.transmissions_in_a_row_to_go = -1
+        self.muted_periods_to_go = 0
 
     def start(self):
         yield self.env.process(self.process_init_offset())
         while True:
-            if self.selected_number_of_frames_in_a_row == 0:
-                self.selected_number_of_muted_periods = select_random_number(self.max_muted_periods)
+            if self.transmissions_in_a_row_to_go == 0:
+                self.muted_periods_to_go = select_random_number(self.max_muted_periods)
                 station_log(self,
-                            f"Selecting number of muted periods. Selected number: {self.selected_number_of_muted_periods}")
-                for i in range(0, self.selected_number_of_muted_periods):
-                    station_log(self, f"Skipping frame... {i + 1}/{self.selected_number_of_muted_periods}")
-                    yield self.env.process(self.fbe_skip_process())
-                    self.selected_number_of_frames_in_a_row = -1
+                            f"Selecting number of muted periods. Selected number: {self.muted_periods_to_go}")
+                for i in range(self.muted_periods_to_go):
+                    station_log(self, f"Skipping frame... {i + 1}/{self.muted_periods_to_go}")
+                    if i == self.muted_periods_to_go - 1:
+                        yield self.env.process(self.ffp_skip_transmission())
+                    else:
+                        yield self.env.process(self.ffp_skip_transmission_without_cca())
+
+                self.transmissions_in_a_row_to_go = -1
 
             if self.skip_next_cot:
-                yield self.env.process(self.fbe_skip_process())
+                yield self.env.process(self.ffp_skip_transmission())
             else:
-                if self.selected_number_of_frames_in_a_row == -1:
-                    self.selected_number_of_frames_in_a_row = \
-                        select_random_number(self.max_frames_in_a_row)
+                if self.transmissions_in_a_row_to_go == -1:
+                    self.transmissions_in_a_row_to_go = select_random_number(self.max_transmissions_in_a_row)
                     station_log(self,
                                 f'Selecting number of frames which will be transmitted in the row. '
-                                f'Selected number: {self.selected_number_of_frames_in_a_row} ')
+                                f'Selected number: {self.transmissions_in_a_row_to_go} ')
 
-                station_log(self, f'Continuous frames to go: {self.selected_number_of_frames_in_a_row}')
-                yield self.env.process(self.fbe_transmission_process())
+                station_log(self, f'Continuous frames to go: {self.transmissions_in_a_row_to_go}')
+                yield self.env.process(self.ffp_with_transmission())
 
     def process_cca(self):
-        self.process = self.env.process(super().process_cca())
-        yield self.process
+        yield self.env.process(super().process_cca())
         if self.skip_next_cot:
-            self.selected_number_of_frames_in_a_row = -1
+            self.transmissions_in_a_row_to_go = -1
+
+    def ffp_skip_transmission_without_cca(self):
+        yield self.env.timeout(self.timers.ffp)
 
     def sent_failed(self):
         super().sent_failed()
-        self.selected_number_of_frames_in_a_row = -1
+        self.transmissions_in_a_row_to_go = -1
 
     def sent_completed(self, interrupted_by_simulation_end=False):
-        self.selected_number_of_frames_in_a_row += -1
+        self.transmissions_in_a_row_to_go += -1
         super().sent_completed(interrupted_by_simulation_end)
 
     def get_fbe_version(self):
@@ -1053,20 +1056,20 @@ class FloatingFBE(FBE):
     def start(self):
         yield self.env.process(self.process_init_offset())
         while True:
-            yield self.env.process(self.fbe_transmission_process())
+            yield self.env.process(self.backoff_process())
+            if self.skip_next_cot:
+                yield self.env.process(self.ffp_skip_transmission())
+            else:
+                yield self.env.process(self.ffp_with_transmission())
 
-    def fbe_skip_process(self):
+    def ffp_skip_transmission(self):
         yield self.env.timeout(self.timers.cot + self.pause_time_after_transmission)
 
-    def fbe_transmission_process(self):
-        yield self.env.process(self.backoff_process())
-        if self.skip_next_cot:
-            yield self.env.process(self.fbe_skip_process())
-        else:
-            self.transmission_process = self.env.process(self.send_transmission())
-            yield self.transmission_process
-            station_log(self, f'Waiting : {self.pause_time_after_transmission} before next FFP')
-            yield self.env.timeout(self.pause_time_after_transmission)
+    def ffp_with_transmission(self):
+        self.transmission_process = self.env.process(self.send_transmission())
+        yield self.transmission_process
+        station_log(self, f'Waiting : {self.pause_time_after_transmission} before next FFP')
+        yield self.env.timeout(self.pause_time_after_transmission)
 
     def backoff_process(self):
         yield self.env.process(self.wait_random_time_before_cca())
@@ -1099,20 +1102,20 @@ class FixedMutingFBE(FBE):
                             f'Waiting muted periods after successful transmission. Muted periods to go '
                             f'{self.muted_periods_to_go}')
                 if self.muted_periods_to_go == 1:
-                    yield self.env.process(self.fbe_skip_process())
+                    yield self.env.process(self.ffp_skip_transmission())
                 else:
-                    yield self.env.process(self.fbe_skip_process_without_cca())
+                    yield self.env.process(self.ffp_skip_transmission_without_cca())
                 self.muted_periods_to_go += -1
             else:
                 if self.skip_next_cot:
-                    yield self.env.process(self.fbe_skip_process())
+                    yield self.env.process(self.ffp_skip_transmission())
                 else:
-                    yield self.env.process(self.fbe_transmission_process())
+                    yield self.env.process(self.ffp_with_transmission())
 
-    def fbe_skip_process_without_cca(self):
+    def ffp_skip_transmission_without_cca(self):
         yield self.env.timeout(self.timers.ffp)
 
-    def fbe_transmission_process(self):
+    def ffp_with_transmission(self):
         self.transmission_process = self.env.process(self.send_transmission())
         yield self.transmission_process
         yield self.env.process(self.wait_until_cca())
@@ -1152,9 +1155,9 @@ class DeterministicBackoffFBE(FBE):
         yield self.env.process(self.process_init_offset())
         while True:
             if self.backoff_counter == 0:
-                yield self.env.process(self.fbe_transmission_process())
+                yield self.env.process(self.ffp_with_transmission())
             else:
-                yield self.env.process(self.fbe_skip_process())
+                yield self.env.process(self.ffp_skip_transmission())
             if self.drop_frame:
                 self.drop_frame = False
                 self.select_backoff()
@@ -1263,6 +1266,7 @@ class Channel:
     airtime_data_NR: Dict[str, int]
     airtime_control_NR: Dict[str, int]
     simulation_time: int
+
     tx_list: List[Station] = field(default_factory=list)  # transmitting stations in the channel
     back_off_list: List[Station] = field(default_factory=list)  # stations in backoff phase
     tx_list_NR: List[Gnb] = field(default_factory=list)  # transmitting stations in the channel
@@ -1270,9 +1274,8 @@ class Channel:
     back_off_list_NR: List[Gnb] = field(default_factory=list)  # stations in backoff phase
     cca_list_NR_FBE: List[FBE] = field(default_factory=list)
     event_dict: dict = field(default_factory=lambda: {"time": [], "station_name": [], "event_type": []})
-    # problem list of station objects, what if we 2 differenet station objects???
-
     db_fbe_backoff_change_dict: dict = field(default_factory=lambda: {"time": [], "backoff": [], "station_name": []})
+
     failed_transmissions: int = 0  # total failed transmissions
     succeeded_transmissions: int = 0  # total succeeded transmissions
     bytes_sent: int = 0  # total bytes sent
