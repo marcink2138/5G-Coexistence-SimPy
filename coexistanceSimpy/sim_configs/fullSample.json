@@ -1,0 +1,80 @@
+{
+  "STANDARD_FBE": [
+    {
+      "name": string,
+      "offset": semicolon seperated list,
+      "cot": semicolon seperated list,
+      "ffp": semicolon seperated list
+    }
+  ],
+  "RANDOM_MUTING_FBE": [
+    {
+      "name": string,
+      "offset": semicolon seperated list,
+      "cot": semicolon seperated list,
+      "ffp": semicolon seperated list,
+      "max_muted_periods": int,
+      "max_frames_in_row": int
+    }
+  ],
+  "FIXED_MUTING_FBE": [
+    {
+      "name": string,
+      "offset": semicolon seperated list,
+      "cot": semicolon seperated list,
+      "ffp": semicolon seperated list,
+      "max_muted_periods": int
+    }
+  ],
+  "FLOATING_FBE": [
+    {
+      "name": string,
+      "offset": semicolon seperated list,
+      "cot": semicolon seperated list,
+      "ffp": semicolon seperated list
+    }
+  ],
+  "DETERMINISTIC_BACKOFF_FBE": [
+    {
+      "name": string,
+      "offset": semicolon seperated list,
+      "cot": semicolon seperated list,
+      "ffp": semicolon seperated list,
+      "max_retransmissions": int,
+      "init_backoff": int,
+      "threshold": int
+    }
+  ],
+  "RUN_SEPARATELY": boolean by default set to false,
+  "SCENARIO_RUNS": int by default set to 1
+  "SIMULATION_TIME": int by default set to 1 000 000,
+  "OUTPUT_PARAMS": {
+    "folder_name": string,
+    "file_name": string,
+    "enable_logging": boolean by default set to true,
+    "all_in_one": {
+      "x_axis": semicolon seperated list,
+      "y_axis": semicolon seperated list,
+      "title": semicolon seperated list,
+      "x_label": semicolon seperated list,
+      "y_label": semicolon seperated list
+    },
+    "fairness": {
+      "x_axis": semicolon seperated list,
+      "title": semicolon seperated list,
+      "x_label": semicolon seperated list
+    },
+    "summary_airtime": {
+      "x_axis": semicolon seperated list,
+      "title": semicolon seperated list,
+      "x_label": semicolon seperated list
+    },
+    "separate_plots": {
+      "x_axis": semicolon seperated list,
+      "y_axis": semicolon seperated list,
+      "title": semicolon seperated list,
+      "x_label": semicolon seperated list,
+      "y_label": semicolon seperated list
+    }
+  }
+}

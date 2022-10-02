@@ -1,111 +1,32 @@
 {
-  "STANDARD_FBE": [
-    {
-      "name": "GNB_FBE {}",
-      "offset": "0",
-      "cot": "5000",
-      "ffp": "10000"
-    }
-  ],
   "RANDOM_MUTING_FBE": [
     {
-      "name": "GNB_FBE {}",
+      "name": "GNB_FBE 1",
       "offset": "0",
-      "cot": "5000",
-      "ffp": "10000",
+      "cot": "250;750;1250",
+      "ffp": "5000",
+      "max_muted_periods": "5",
+      "max_frames_in_row": "5"
+    },
+    {
+      "name": "GNB_FBE 1",
+      "offset": "0..500",
+      "cot": "250;750",
+      "ffp": "5000",
       "max_muted_periods": "5",
       "max_frames_in_row": "5"
     }
   ],
-  "FIXED_MUTING_FBE": [
-    {
-      "name": "GNB_FBE {}",
-      "offset": "0",
-      "cot": "5000",
-      "ffp": "10000",
-      "max_muted_periods": "1"
-    }
-  ],
-  "FLOATING_FBE": [
-    {
-      "name": "GNB_FBE {}",
-      "offset": "0",
-      "cot": "5000",
-      "ffp": "10000"
-    }
-  ],
-  "DETERMINISTIC_BACKOFF_FBE": [
-    {
-      "name": "GNB_FBE {}",
-      "offset": "0",
-      "cot": "5000",
-      "ffp": "10000",
-      "max_retransmissions": "5",
-      "init_backoff": "3",
-      "threshold": "4"
-    }
-  ],
-  "SIMULATION_TIME": "1000000"
-},{
-  "FLOATING_FBE": [
-    {
-      "name": "GNB_FBE {}",
-      "offset": "0",
-      "cot": "250;750;1250;1750;2250;2750;3250;3750;4250;4750",
-      "ffp": "5000"
-    },
-    {
-      "name": "GNB_FBE {}",
-      "offset": "0",
-      "cot": "250;750;1250;1750;2250;2750;3250;3750;4250;4750",
-      "ffp": "5000"
-    },
-    {
-      "name": "GNB_FBE {}",
-      "offset": "0",
-      "cot": "250;750;1250;1750;2250;2750;3250;3750;4250;4750",
-      "ffp": "5000"
-    },
-    {
-      "name": "GNB_FBE {}",
-      "offset": "0",
-      "cot": "250;750;1250;1750;2250;2750;3250;3750;4250;4750",
-      "ffp": "5000"
-    },
-    {
-      "name": "GNB_FBE {}",
-      "offset": "0",
-      "cot": "250;750;1250;1750;2250;2750;3250;3750;4250;4750",
-      "ffp": "5000"
-    }
-  ],
   "SIMULATION_TIME": "1000000",
   "OUTPUT_PARAMS": {
-    "folder_name": "floating_fbe_test_v2",
-    "file_name": "floating_fbe_test",
+    "file_name": "random_muting_fbe_test",
+    "folder_name": "random_muting_fbe_test_v3",
     "all_in_one": {
       "x_axis": "normalized_cot",
       "y_axis": "normalized_air_time",
-      "title": "Floating FBE",
+      "title": "Random-muting FBE",
       "x_label": "Normalized cot",
       "y_label": "Normalized airtime"
-    },
-    "fairness": {
-      "x_axis": "normalized_cot",
-      "title": "Fairness",
-      "x_label": "COT [us]"
-    },
-    "summary_airtime": {
-      "x_axis": "normalized_cot",
-      "title": "Summary airtime",
-      "x_label": "COT [us]"
-    },
-    "separate_plots": {
-      "x_axis": "normalized_cot",
-      "y_axis": "air_time",
-      "title": "Floating FBE",
-      "x_label": "COT [us]",
-      "y_label": "Airtime [us]"
     }
   }
 }

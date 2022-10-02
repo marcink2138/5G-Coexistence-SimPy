@@ -1047,12 +1047,6 @@ class FloatingFBE(FBE):
         self.number_of_slots = math.floor(timers.idle_period / timers.observation_slot_time) - 1
         self.pause_time_after_transmission = 0
 
-    def wait_random_time_before_cca(self):
-        time_to_wait = select_random_number(self.number_of_slots) * self.timers.observation_slot_time
-        station_log(self, f'Selected backoff before CCA : {time_to_wait}')
-        self.pause_time_after_transmission = self.timers.idle_period - time_to_wait - self.timers.cca
-        yield self.env.timeout(time_to_wait)
-
     def start(self):
         yield self.env.process(self.process_init_offset())
         while True:
@@ -1061,6 +1055,12 @@ class FloatingFBE(FBE):
                 yield self.env.process(self.ffp_skip_transmission())
             else:
                 yield self.env.process(self.ffp_with_transmission())
+
+    def wait_random_time_before_cca(self):
+        time_to_wait = select_random_number(self.number_of_slots) * self.timers.observation_slot_time
+        station_log(self, f'Selected backoff before CCA : {time_to_wait}')
+        self.pause_time_after_transmission = self.timers.idle_period - time_to_wait - self.timers.cca
+        yield self.env.timeout(time_to_wait)
 
     def ffp_skip_transmission(self):
         yield self.env.timeout(self.timers.cot + self.pause_time_after_transmission)
