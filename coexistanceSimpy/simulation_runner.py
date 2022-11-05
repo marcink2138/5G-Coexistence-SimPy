@@ -1,17 +1,23 @@
+import decimal
 import os
 
 import duckdb
 import pandas as pd
 import simpy
 from matplotlib import pyplot as plt
-from logger_util import enable_logging, log
+from coexistanceSimpy.logger_util import enable_logging, log
 import numpy as np
 
 import coexistanceSimpy
-from coexistanceSimpy import FBEVersion
+from coexistanceSimpy import FBEVersion, EventType
 from coexistanceSimpy.scenario_creator_helper import OutputParams
 from coexistanceSimpy.scenario_creator_helper import get_scenario_directly_from_json
 from coexistanceSimpy.scenario_creator_helper import get_station_list_from_json_lists
+from decimal import *
+from coexistanceSimpy.directory_manager_util import try_to_create_directory
+
+getcontext().prec = 12
+getcontext().rounding = decimal.ROUND_HALF_EVEN
 
 marks = ['o', 'v', 's', 'P', '*', 'x', '+']
 colors = ['r', 'g', 'b', 'c', 'm', 'y', 'k']
@@ -55,9 +61,12 @@ def collect_results(stations_list, result_dict, simulation_time):
         result_dict["air_time"].append(station.air_time)
         result_dict["cot"].append(station.timers.cot)
         result_dict["ffp"].append(station.timers.ffp)
-        normalized_air_time = round(station.air_time / simulation_time, 2)
-        normalized_ffp = round(station.timers.ffp / max_ffp, 2)
-        normalized_cot = round(station.timers.cot / station.timers.ffp, 2)
+        # normalized_air_time = round(station.air_time / simulation_time, 2)
+        normalized_air_time = float(Decimal(station.air_time) / Decimal(simulation_time))
+        # normalized_ffp = round(station.timers.ffp / max_ffp, 2)
+        normalized_ffp = float(Decimal(station.timers.ffp) / Decimal(max_ffp))
+        # normalized_cot = round(station.timers.cot / station.timers.ffp, 2)
+        normalized_cot = float(Decimal(station.timers.cot) / Decimal(station.timers.ffp))
         result_dict["normalized_air_time"].append(normalized_air_time)
         result_dict["successful_transmissions"].append(station.succeeded_transmissions)
         result_dict["failed_transmissions"].append(station.failed_transmissions)
@@ -101,7 +110,8 @@ def calculate_fairness_and_summary_air_time(grouped_stations):
         n += 1
     fairness = 0
     if fairness_denominator != 0:
-        fairness = round((fairness_nominator ** 2) / (n * fairness_denominator), 4)
+        # fairness = round((fairness_nominator ** 2) / (n * fairness_denominator), 4)
+        fairness = float(Decimal(fairness_nominator ** 2) / Decimal(n * fairness_denominator))
     return fairness, summary_air_time
 
 
@@ -144,6 +154,7 @@ def run_simulation(simulation_params):
                    "summary_air_time": []}
     event_dict_list = []
     db_fbe_backoff_changes_dict_list = []
+    db_fbe_interrupt_counter_dict_list = []
     print(f"Test name: {output_params.file_name} in folder: {output_params.folder_name}")
     log(f"Test name: {output_params.file_name} in folder: {output_params.folder_name}", log_name)
     for i in range(scenario_runs):
@@ -152,9 +163,10 @@ def run_simulation(simulation_params):
         stations_list = get_station_list_from_json_lists()
         if is_separate_run:
             separate_runner(stations_list, simulation_time, result_dict, event_dict_list,
-                            db_fbe_backoff_changes_dict_list)
+                            db_fbe_backoff_changes_dict_list, db_fbe_interrupt_counter_dict_list)
         else:
-            runner(simulation_time, stations_list, result_dict, event_dict_list, db_fbe_backoff_changes_dict_list)
+            runner(simulation_time, stations_list, result_dict,
+                   event_dict_list, db_fbe_backoff_changes_dict_list, db_fbe_interrupt_counter_dict_list)
 
     df = pd.DataFrame.from_dict(result_dict)
     if scenario_runs > 1:
@@ -164,17 +176,26 @@ def run_simulation(simulation_params):
         sim_results_path = path_to_folder + output_params.file_name + "_df.csv"
         log(f"Saving simulation results to:{sim_results_path} ...", log_name)
         df.to_csv(sim_results_path)
+        if scenario_runs > 1:
+            return
         events_df = merge_dicts_into_df(event_dict_list)
         events_path = path_to_folder + output_params.file_name + "_events.csv"
         log(f"Saving simulation events to:{events_path} ...", log_name)
+        plot_events(event_dict_list, output_params)
         events_df.to_csv(events_path)
         if simulation_params.contains_db_fbe:
+            db_fbe_interrupt_df = merge_dicts_into_df(db_fbe_interrupt_counter_dict_list)
+            db_fbe_interrupt_df_path = path_to_folder + output_params.file_name + "_db_fbe_interrupt.csv"
             db_fbe_backoff_changes_df = merge_dicts_into_df(db_fbe_backoff_changes_dict_list)
             db_fbe_backoff_changes_path = path_to_folder + output_params.file_name + "_db_fbe_backoff.csv"
             log(f"Saving db fbe backoff changes to: {db_fbe_backoff_changes_path} ...", log_name)
             db_fbe_backoff_changes_df.to_csv(db_fbe_backoff_changes_path)
-            # log("Plotting db fbe backoff changes", log_name)
-            # plot_db_fbe_backoff_changes(db_fbe_backoff_changes_dict_list, output_params)
+            log(f"Saving db fbe interrupt counter changes to: {db_fbe_interrupt_df_path} ...", log_name)
+            db_fbe_interrupt_df.to_csv(db_fbe_interrupt_df_path)
+            log("Plotting db fbe backoff changes", log_name)
+            plot_db_fbe_backoff_changes(db_fbe_backoff_changes_dict_list, output_params)
+            plot_db_fbe_backoff_changes(db_fbe_backoff_changes_dict_list, output_params, False)
+            plot_interrupt_counter_changes(db_fbe_interrupt_counter_dict_list, output_params)
 
 
 def prepare_dataframe_after_many_scenario_runs(df):
@@ -200,7 +221,13 @@ def merge_dicts_into_df(dict_list):
     return df
 
 
-def runner(simulation_time, stations_list, result_dict, event_dict_list, db_fbe_backoff_changes_dict_list):
+def log_run_stations_params(stations_list):
+    for station in stations_list:
+        log(repr(station), log_name)
+
+
+def runner(simulation_time, stations_list, result_dict, event_dict_list, db_fbe_backoff_changes_dict_list,
+           db_fbe_interrupt_changes_dict_list):
     total_run_number = get_total_run_number(stations_list)
     print(f'Total run number: {total_run_number}')
     for run_number in range(total_run_number):
@@ -211,14 +238,17 @@ def runner(simulation_time, stations_list, result_dict, event_dict_list, db_fbe_
                                            simulation_time)
         current_run_stations_list = get_stations_for_current_run(stations_list, run_number)
         set_env_channel(current_run_stations_list, env, channel)
+        log_run_stations_params(current_run_stations_list)
         env.run(until=simulation_time)
         collect_results(current_run_stations_list, result_dict, simulation_time)
         current_run_stations_list.clear()
         event_dict_list.append(channel.event_dict)
         db_fbe_backoff_changes_dict_list.append(channel.db_fbe_backoff_change_dict)
+        db_fbe_interrupt_changes_dict_list.append(channel.db_interrupt_counter)
 
 
-def separate_runner(stations_list, simulation_time, result_dict, event_dict_list, db_fbe_backoff_changes_dict_list):
+def separate_runner(stations_list, simulation_time, result_dict, event_dict_list, db_fbe_backoff_changes_dict_list,
+                    db_fbe_interrupt_changes_dict_list):
     for stations in stations_list:
         print(f'Running stations separately. Current number of stations: {len(stations)}')
         for station in stations:
@@ -227,10 +257,12 @@ def separate_runner(stations_list, simulation_time, result_dict, event_dict_list
             channel = coexistanceSimpy.Channel(None, simpy.Resource(env, capacity=1), 0, 0, None, None, None, None,
                                                None,
                                                simulation_time)
+            log(repr(station), log_name)
             set_env_channel([station], env, channel)
             env.run(until=simulation_time)
             event_dict_list.append(channel.event_dict)
             db_fbe_backoff_changes_dict_list.append(channel.db_fbe_backoff_change_dict)
+            db_fbe_interrupt_changes_dict_list.append(channel.db_interrupt_counter)
         collect_results(stations, result_dict, simulation_time)
 
 
@@ -246,18 +278,87 @@ def process_results(df, output_params: OutputParams):
         plot_separate(df, output_params)
 
 
-def plot_db_fbe_backoff_changes(db_fbe_backoff_changes_dict_list, output_params):
+def plot_db_fbe_backoff_changes(db_fbe_backoff_changes_dict_list, output_params, init_plot=True):
     for run_number, db_fbe_backoff_changes_dict in enumerate(db_fbe_backoff_changes_dict_list, start=1):
         df = pd.DataFrame.from_dict(db_fbe_backoff_changes_dict)
+        if init_plot:
+            df = duckdb.query("SELECT * FROM df WHERE is_init = true").df()
+        else:
+            df = duckdb.query("SELECT * FROM df").df()
         fig, ax = plt.subplots()
         i = 0
         for key, grp in df.groupby(["station_name"]):
-            ax = grp.plot(ax=ax, marker=marks[i], x="time", y="backoff", label=key, c=colors[i])
+            if init_plot:
+                ax = grp.plot(ax=ax, x="time", y="backoff", label=key, c=colors[i], drawstyle="steps-post")
+            else:
+                ax = grp.plot(ax=ax, x="time", y="backoff", label=key, c=colors[i], marker=marks[i])
             i += 1
 
         ax.set(xlabel="time", ylabel="backoff", title="DB FBE backoff")
         plt.tight_layout()
-        save_plot(output_params, "all_in_one", run_number)
+        plot_type = "backoff_changes_init" if init_plot else "backoff_changes"
+        save_plot(output_params, plot_type, run_number)
+
+
+def plot_interrupt_counter_changes(db_fbe_interrupt_counter_changes_dict_list, output_params):
+    for run_number, db_fbe_backoff_changes_dict in enumerate(db_fbe_interrupt_counter_changes_dict_list, start=1):
+        df = pd.DataFrame.from_dict(db_fbe_backoff_changes_dict)
+        df = duckdb.query("SELECT * FROM df WHERE time between 0 AND 100000").df()
+        fig, ax = plt.subplots()
+        i = 0
+        for key, grp in df.groupby(["station_name"]):
+            ax = grp.plot(ax=ax, x="time", y="value", label=key, c=colors[i], drawstyle="steps-post")
+            i += 1
+
+        ax.set(xlabel="time", ylabel="interrupt counter", title="DB FBE interrupt counter")
+        plt.tight_layout()
+        plot_type = "interrupt_counter_changes"
+        save_plot(output_params, plot_type, run_number)
+
+
+def plot_events(events_dict_list, output_params):
+    for run_number, events_dict in enumerate(events_dict_list, start=1):
+        df = pd.DataFrame.from_dict(events_dict).drop_duplicates(subset=['event_type', 'time']).tail(32)
+        events = df["event_type"].tolist()
+        station_names = df["station_name"].tolist()
+        unique_station_names = duckdb.query("SELECT DISTINCT station_name FROM df").df()["station_name"].tolist()
+        station_idx_name_dict = {}
+        # for station_idx, unique_station_name in enumerate(unique_station_names, start=1):
+        #     station_idx_name_dict[unique_station_name] = station_idx
+        for unique_station_name in unique_station_names:
+            station_idx_name_dict[unique_station_name] = unique_station_name[-1]
+
+        fig, ax = plt.subplots()
+        ax.axes.get_yaxis().set_visible(False)
+        ax.set_aspect(1)
+        x = 0
+        for event, station_name in zip(events, station_names):
+            x1 = [x, x + 1]
+            y1 = [0, 0]
+            y2 = [1, 1]
+            if event == EventType.CCA_INTERRUPTED.name:
+                # plt.fill_between(x1, y1, y2=y2, color='red', edgecolor='black')
+                pass
+            elif event == EventType.CHANNEL_COLLISION.name:
+                plt.fill_between(x1, y1, y2=y2, color='grey', edgecolor='black')
+                plt.text(avg(x1[0], x1[1]), avg(y1[0], y2[0]), '-', horizontalalignment='center',
+                         verticalalignment='center')
+            else:
+                plt.fill_between(x1, y1, y2=y2, color='green', edgecolor='black')
+                idx = station_idx_name_dict.get(station_name)
+                plt.text(avg(x1[0], x1[1]), avg(y1[0], y2[0]), idx, horizontalalignment='center',
+                         verticalalignment='center')
+            x += 1
+        plt.yticks([0, 1])
+        plt.tight_layout()
+        plt.ylim(0, 1)
+        plt.xlim(0, 32)
+        plot_type = "events"
+        save_plot(output_params, plot_type, run_number)
+
+
+def avg(a, b):
+    return (a + b) / 2.0
 
 
 def plot_separate(df: pd.DataFrame, output_params: OutputParams):
@@ -350,20 +451,26 @@ def plot_summary_airtime(df: pd.DataFrame, output_params: OutputParams):
         plot_num += 1
 
 
-def get_path_to_folder(output_params: OutputParams):
-    path_to_folder = None
+def get_path_to_folder(output_params: OutputParams, additional_dir=''):
     if output_params.folder_name is None:
-        path_to_folder = os.getcwd() + '/val_output/images/'
+        path_to_folder = try_to_create_directory(f'/val_output/{additional_dir}')
     else:
-        path_to_folder = os.getcwd() + f'/val_output/images/{output_params.folder_name}'
+        path_to_folder = try_to_create_directory(output_params.folder_name + "/" + additional_dir)
         if not os.path.exists(path_to_folder):
             os.makedirs(path_to_folder)
+    if additional_dir != '':
         path_to_folder += '/'
     return path_to_folder
 
 
 def save_plot(output_params: OutputParams, plot_type, plot_num):
-    path_to_save = get_path_to_folder(output_params)
+    if plot_type == 'backoff_changes_init' \
+            or plot_type == 'events' \
+            or plot_type == 'backoff_changes' \
+            or plot_type == 'interrupt_counter_changes':
+        path_to_save = get_path_to_folder(output_params, additional_dir=plot_type)
+    else:
+        path_to_save = get_path_to_folder(output_params)
 
     if plot_num > 0:
         path_to_save += output_params.file_name + "_" + plot_type + "_" + str(plot_num)
@@ -402,5 +509,15 @@ def run_test(json_path):
 
 
 if __name__ == '__main__':
-    a = [1, 2, 3, 4]
-    print(np.std(a))
+    # a = [1, 2, 3, 4]
+    # y1 = [0, 0]
+    # y2 = [1, 1]
+    # x1 = [0, 1]
+    # ax = plt.fill_between(x1, y1, y2=y2, color='grey', edgecolor='black')
+    # x1 = [3, 4]
+    # ax = plt.fill_between(x1, y1, y2=y2, color='grey', edgecolor='black')
+    # plt.show()
+    a = [3, 6, 3, 10]
+    b = [0, 20, 60, 80]
+    plt.step(b, a, where='post')
+    plt.show()

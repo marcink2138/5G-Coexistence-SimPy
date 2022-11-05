@@ -33,7 +33,7 @@
   ],
   "SIMULATION_TIME": "1000000",
   "OUTPUT_PARAMS": {
-    "folder_name": "floating_fbe_test_v2",
+    "folder_name": "floating_fbe_test",
     "file_name": "floating_fbe_test",
     "all_in_one": {
       "x_axis": "normalized_cot",

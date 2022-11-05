@@ -6,8 +6,8 @@
       "cot": "250;750;1250;1750;2250;2750;3250;3750;4250;4750",
       "ffp": "5000",
       "max_retransmissions": "5",
-      "init_backoff": "3",
-      "threshold": "4"
+      "init_backoff": "2",
+      "threshold": "3"
     },
     {
       "name": "GNB_FBE {}",
@@ -15,8 +15,8 @@
       "cot": "250;750;1250;1750;2250;2750;3250;3750;4250;4750",
       "ffp": "5000",
       "max_retransmissions": "5",
-      "init_backoff": "3",
-      "threshold": "4"
+      "init_backoff": "2",
+      "threshold": "3"
     },
     {
       "name": "GNB_FBE {}",
@@ -24,8 +24,8 @@
       "cot": "250;750;1250;1750;2250;2750;3250;3750;4250;4750",
       "ffp": "5000",
       "max_retransmissions": "5",
-      "init_backoff": "3",
-      "threshold": "4"
+      "init_backoff": "2",
+      "threshold": "3"
     },
     {
       "name": "GNB_FBE {}",
@@ -33,14 +33,14 @@
       "cot": "250;750;1250;1750;2250;2750;3250;3750;4250;4750",
       "ffp": "5000",
       "max_retransmissions": "5",
-      "init_backoff": "3",
-      "threshold": "4"
+      "init_backoff": "2",
+      "threshold": "3"
     }
   ],
-  "SIMULATION_TIME": "1000000",
+  "SIMULATION_TIME": "5000000",
   "OUTPUT_PARAMS": {
     "file_name": "db_fbe",
-    "folder_name": "four_stations_no_offset_v2",
+    "folder_name": "four_stations_no_offset/db_fbe",
     "all_in_one": {
       "x_axis": "normalized_cot",
       "y_axis": "normalized_air_time",

@@ -1,7 +1,7 @@
 import csv
 import os
 import random
-from logger_util import station_log
+from coexistanceSimpy.logger_util import station_log
 from abc import abstractmethod, ABC
 from dataclasses import dataclass, field
 from enum import Enum
@@ -9,7 +9,7 @@ from typing import Dict, List
 
 import simpy
 
-from Times import *
+from coexistanceSimpy.Times import *
 
 output_csv = "output_test.csv"
 
@@ -814,7 +814,6 @@ class FBE(ABC):
             end = self.env.now
             diff = end - init
             station_log(self, 'CCA interrupted, skipping next FFP')
-            self.add_event_to_dict(EventType.CCA_INTERRUPTED.name)
             self.channel.cca_list_NR_FBE.remove(self)
             if diff == 0:
                 yield self.env.timeout(self.timers.cca)
@@ -839,8 +838,9 @@ class FBE(ABC):
 
     def send_transmission(self):
         self.channel.tx_list_NR_FBE.append(self)
+        transmission_start = self.env.now
+        transmission_end = transmission_start + self.timers.cot
         with self.channel.tx_lock.request() as request_token:
-            transmission_start = self.env.now
             try:
                 station_log(self, f"Starting transmission")
                 request = yield request_token | self.env.timeout(0)
@@ -853,6 +853,7 @@ class FBE(ABC):
                                 f"Transmission interrupted by simulation end. COT len = {self.timers.cot}. "
                                 f"Time remained: {remained_time}")
                     self.handle_sim_end = True
+                    transmission_end = transmission_start + remained_time
                     # When simpy env reaches sim end time whole simulation will be shut down.
                     # Handle this by waiting for 1 us less
                     yield self.env.timeout(remained_time - 1)
@@ -861,20 +862,23 @@ class FBE(ABC):
                 if self.get_curr_transmissions_list_len_sum() > 1:
                     station_log(self, f"Collision in channel detected after transmission")
                     self.sent_failed()
+                    self.add_event_to_dict(EventType.CHANNEL_COLLISION.name, transmission_start, transmission_end)
                 else:
                     self.sent_completed(remained_time)
+                    self.add_event_to_dict(EventType.SUCCESSFUL_TRANSMISSION.name, transmission_start, transmission_end)
 
                 if self.handle_sim_end is True:
                     yield self.env.timeout(1)
                 self.channel.tx_list_NR_FBE.remove(self)
 
             except simpy.Interrupt:
-                self.sent_failed()
                 now = self.env.now
                 remained_transmission_time = self.timers.cot - (now - transmission_start)
                 station_log(self, f"Collision in channel detected during transmission. "
                                   f"Time to end transmission: {remained_transmission_time}")
                 yield self.env.timeout(self.timers.cot)
+                self.sent_failed()
+                self.add_event_to_dict(EventType.CHANNEL_COLLISION.name, transmission_start, transmission_end)
                 self.channel.tx_list_NR_FBE.remove(self)
 
     def interrupt_cca(self):
@@ -892,12 +896,12 @@ class FBE(ABC):
 
     def sent_failed(self):
         station_log(self, f"Transmission failed")
-        self.add_event_to_dict(EventType.CHANNEL_COLLISION.name)
         self.failed_transmissions += 1
         self.channel.failed_transmissions_NR_FBE += 1
 
-    def add_event_to_dict(self, event_type):
-        self.channel.event_dict["time"].append(self.env.now)
+    def add_event_to_dict(self, event_type, event_start, event_end):
+        self.channel.event_dict["time"].append(event_start)
+        self.channel.event_dict["event_end"].append(event_end)
         self.channel.event_dict["station_name"].append(self.name)
         self.channel.event_dict["event_type"].append(event_type)
 
@@ -916,7 +920,6 @@ class FBE(ABC):
 
     def sent_completed(self, sim_end_air_time=None):
         station_log(self, f"Successfully sent transmission")
-        self.add_event_to_dict(EventType.SUCCESSFUL_TRANSMISSION.name)
         if self.handle_sim_end:
             station_log(self, f"Current air time: {self.air_time}. Airtime to add: {sim_end_air_time}. "
                               f"Sum : {self.air_time + sim_end_air_time}")
@@ -954,6 +957,14 @@ class FBE(ABC):
 
     def __str__(self) -> str:
         return "(FBE) "
+
+    def __repr__(self) -> str:
+        return f'\n' \
+               f'Offset: {self.offset} \n' \
+               f'Timers: \n' \
+               f'cot: {self.timers.cot} \n' \
+               f'ffp: {self.timers.ffp} \n' \
+               f'cca: {self.timers.cca} \n'
 
 
 class StandardFBE(FBE):
@@ -1018,7 +1029,7 @@ class RandomMutingFBE(FBE):
                 yield self.env.process(self.ffp_with_transmission())
 
     def process_cca(self):
-        yield self.env.process(super().process_cca())
+        yield from super().process_cca()
         if self.skip_next_cot:
             self.transmissions_in_a_row_to_go = -1
 
@@ -1038,6 +1049,11 @@ class RandomMutingFBE(FBE):
 
     def __str__(self) -> str:
         return "(Random-muting FBE) "
+
+    def __repr__(self) -> str:
+        return super().__repr__() + \
+               f'max_transmissions_in_a_row: {self.max_transmissions_in_a_row} \n' \
+               f'max_muted_periodes: {self.max_muted_periods} \n'
 
 
 class FloatingFBE(FBE):
@@ -1085,6 +1101,10 @@ class FloatingFBE(FBE):
 
     def __str__(self) -> str:
         return "(Floating FBE) "
+
+    def __repr__(self) -> str:
+        return super().__repr__() + \
+               f'slots_num: {self.number_of_slots} \n'
 
 
 class FixedMutingFBE(FBE):
@@ -1135,6 +1155,10 @@ class FixedMutingFBE(FBE):
     def __str__(self) -> str:
         return "(Fixed-muting FBE) "
 
+    def __repr__(self) -> str:
+        return super().__repr__() + \
+               f'max_number_of_muted_periods: {self.max_number_of_muted_periods}'
+
 
 class DeterministicBackoffFBE(FBE):
 
@@ -1149,7 +1173,8 @@ class DeterministicBackoffFBE(FBE):
         self.threshold = threshold
         self.interrupt_counter = 0
         self.drop_frame = False
-        self.init_cca = True
+        self.incremented_during_monitor = False
+        self.monitor_time = self.timers.ffp - self.timers.cca
 
     def start(self):
         yield self.env.process(self.process_init_offset())
@@ -1157,29 +1182,65 @@ class DeterministicBackoffFBE(FBE):
             if self.backoff_counter == 0:
                 yield self.env.process(self.ffp_with_transmission())
             else:
+                self.skip_next_cot = False
                 yield self.env.process(self.ffp_skip_transmission())
             if self.drop_frame:
+                station_log(self, 'Dropping frame ...')
                 self.drop_frame = False
                 self.select_backoff()
 
     def process_init_offset(self):
+        self.add_interrupt_counter_to_dict(True)
         if self.run_with_offset:
             yield self.env.timeout(self.offset)
 
         self.select_backoff()
-        yield from self.process_cca()
-
-    def process_cca(self):
-        self.process = self.env.process(super().process_cca())
+        self.process = self.env.process(self.process_cca())
         yield self.process
 
-        if self.skip_next_cot:
-            self.interrupt_counter += 1
-            station_log(self, f'Interrupt counter incremented. Actual value: {self.interrupt_counter}')
+    def ffp_skip_transmission(self):
+        self.process = self.env.process(self.monitor_channel())
+        yield self.process
+        self.process = self.env.process(self.process_cca())
+        yield self.process
 
-        if self.backoff_counter != 0:
-            self.backoff_counter -= 1
-            station_log(self, f'Backoff decremented. Actual value: {self.backoff_counter}')
+    def monitor_channel(self):
+        now = self.env.now
+        try:
+            self.channel.cca_list_NR_FBE.append(self)
+            if self.get_curr_transmissions_list_len_sum() > 0:
+                station_log(self, 'Channel monitoring failed at the beginning')
+                raise simpy.Interrupt('Channel monitoring failed at the beginning')
+            yield self.env.timeout(self.monitor_time)
+            self.channel.cca_list_NR_FBE.remove(self)
+        except simpy.Interrupt:
+            end = self.env.now
+            diff = end - now
+            self.channel.cca_list_NR_FBE.remove(self)
+            self.interrupt_counter += 1
+            self.add_interrupt_counter_to_dict()
+            self.incremented_during_monitor = True
+            station_log(self, f'Incrementing interrupt_counter. '
+                              f'Actual value: {self.interrupt_counter}. '
+                              f'Incremented during monitor: {self.incremented_during_monitor}. '
+                              f'Time to finish monitor mode: {self.monitor_time - diff}')
+            yield self.env.timeout(self.monitor_time - diff)
+
+    def process_cca(self):
+        yield from super().process_cca()
+        if self.skip_next_cot:
+            if not self.incremented_during_monitor:
+                self.interrupt_counter += 1
+                self.add_interrupt_counter_to_dict()
+                station_log(self, f'Interrupt counter incremented after CCA. Actual value: {self.interrupt_counter}')
+                self.incremented_during_monitor = False
+        else:
+            if self.backoff_counter > 0:
+                self.backoff_counter -= 1
+                station_log(self, f'Backoff counter decremented. Actual value: {self.backoff_counter}')
+                self.add_backoff_to_dict(False)
+                if self.backoff_counter == 0:
+                    station_log(self, f'Backoff = 0. Starting transmission immediately')
 
     def sent_failed(self):
         super().sent_failed()
@@ -1192,11 +1253,9 @@ class DeterministicBackoffFBE(FBE):
             station_log(self,
                         f'Retransmission_counter exceeded maximum number of retransmissions'
                         f' {self.retransmission_counter}/{self.maximum_number_of_retransmissions}.'
-                        f'Dropping frame...')
+                        f'Frame will be dropped...')
             self.retransmission_counter = 0
-            self.interrupt_counter = 0
             self.drop_frame = True
-            self.select_backoff()
 
     def sent_completed(self, sim_end_air_time=None):
         super().sent_completed(sim_end_air_time)
@@ -1207,25 +1266,44 @@ class DeterministicBackoffFBE(FBE):
         modulo = self.retransmission_counter % self.maximum_number_of_retransmissions
         if modulo < self.threshold:
             self.backoff_counter = self.init_backoff_value + self.interrupt_counter
+            station_log(self,
+                        f'Selected new backoff counter: {self.backoff_counter} = {self.init_backoff_value} + {self.interrupt_counter}')
             self.interrupt_counter = 0
+            self.add_interrupt_counter_to_dict()
         else:
             station_log(self, f'False in r%m < threshold ({modulo}<{self.threshold})')
             top_range = self.maximum_number_of_retransmissions - 1
             self.backoff_counter = select_random_number(top_range, bottom_range=0)
-        station_log(self, f'Selected new backoff counter: {self.backoff_counter}')
+            station_log(self, f'Selected new random backoff counter: {self.backoff_counter} = rand({0}, {top_range})')
         self.add_backoff_to_dict()
 
-    def add_backoff_to_dict(self):
+    def add_backoff_to_dict(self, is_init=True):
         time = self.env.now
         self.channel.db_fbe_backoff_change_dict["time"].append(time)
         self.channel.db_fbe_backoff_change_dict["backoff"].append(self.backoff_counter)
         self.channel.db_fbe_backoff_change_dict["station_name"].append(self.name)
+        self.channel.db_fbe_backoff_change_dict["is_init"].append(is_init)
+
+    def add_interrupt_counter_to_dict(self, is_init=False):
+        if is_init:
+            time = 0
+        else:
+            time = self.env.now
+        self.channel.db_interrupt_counter["time"].append(time)
+        self.channel.db_interrupt_counter["value"].append(self.interrupt_counter)
+        self.channel.db_interrupt_counter["station_name"].append(self.name)
 
     def get_fbe_version(self):
         return FBEVersion.DETERMINISTIC_BACKOFF_FBE
 
     def __str__(self) -> str:
         return "(Deterministic-backoff FBE) "
+
+    def __repr__(self) -> str:
+        return super().__repr__() + \
+               f'maximum_number_of_retransmissions: {self.maximum_number_of_retransmissions} \n' \
+               f'init_backoff_value: {self.init_backoff_value} \n' \
+               f'threshold: {self.threshold} \n'
 
 
 def get_fbe_versions():
@@ -1273,9 +1351,13 @@ class Channel:
     tx_list_NR_FBE: List[FBE] = field(default_factory=list)  # transmitting FBE stations in the channel
     back_off_list_NR: List[Gnb] = field(default_factory=list)  # stations in backoff phase
     cca_list_NR_FBE: List[FBE] = field(default_factory=list)
-    event_dict: dict = field(default_factory=lambda: {"time": [], "station_name": [], "event_type": []})
-    db_fbe_backoff_change_dict: dict = field(default_factory=lambda: {"time": [], "backoff": [], "station_name": []})
-
+    event_dict: dict = field(
+        default_factory=lambda: {"time": [], "event_end": [], "station_name": [], "event_type": []})
+    db_fbe_backoff_change_dict: dict = field(
+        default_factory=lambda: {"time": [], "backoff": [], "station_name": [], "is_init": []})
+    db_interrupt_counter: dict = field(
+        default_factory=lambda: {"time": [], "value": [], "station_name": []}
+    )
     failed_transmissions: int = 0  # total failed transmissions
     succeeded_transmissions: int = 0  # total succeeded transmissions
     bytes_sent: int = 0  # total bytes sent

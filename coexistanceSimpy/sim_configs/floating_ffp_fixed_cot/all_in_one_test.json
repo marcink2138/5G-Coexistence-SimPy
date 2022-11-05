@@ -23,8 +23,8 @@
       "cot": "950;1900;2850;3800;4750;5700;6650;7600;8550;9500",
       "ffp": "1000;2000;3000;4000;5000;6000;7000;8000;9000;10000",
       "max_retransmissions": "5",
-      "init_backoff": "3",
-      "threshold": "4"
+      "init_backoff": "2",
+      "threshold": "3"
     }
   ],
   "RANDOM_MUTING_FBE": [
@@ -48,14 +48,14 @@
   "SIMULATION_TIME": "1000000",
   "OUTPUT_PARAMS": {
     "file_name": "all_in_one",
-    "folder_name": "floating_ffp_fixed_cot_v2",
+    "folder_name": "floating_ffp_fixed_cot/all_in_one",
     "all_in_one": {
-       "x_axis": "normalized_ffp",
-       "y_axis": "normalized_air_time",
-       "title": "FBE Stations with floating FFP",
-       "x_label": "Normalized FFP",
-       "y_label": "Normalized airtime"
-     }
+      "x_axis": "normalized_ffp",
+      "y_axis": "normalized_air_time",
+      "title": "FBE Stations with floating FFP",
+      "x_label": "Normalized FFP",
+      "y_label": "Normalized airtime"
+    }
   },
   "RUN_SEPARATELY": true
 }

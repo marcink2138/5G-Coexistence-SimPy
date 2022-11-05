@@ -1,5 +1,6 @@
 import os
 from simulation_runner import run_test
+
 floating_cot_fixed_ffp_scenarios = ['/floating_cot_fixed_ffp/' + f for f in
                                     os.listdir(os.getcwd() + '/sim_configs/floating_cot_fixed_ffp')]
 floating_ffp_fixed_cot_scenarios = ['/floating_ffp_fixed_cot/' + f for f in
@@ -14,6 +15,9 @@ floating_fbe_test_scenario = 'floating_fbe_test/floating_fbe_test.json'
 random_muting_test_scenario = 'random_muting_test/random_muting_fbe_test.json'
 fixed_muting_test_scenario = 'fixed_muting_fbe_test/fixed_muting_fbe_test.json'
 random_muting_test_v3_scenario = 'random_muting_test_v3/random_muting_fbe_test.json'
+no_offset_db_fbe_scenario = 'four_stations_no_offset/db_fbe.json'
+random_offset_db = 'random_offset_db_fbe/random_offset_db_fbe.json'
+
 
 def get_json_path(sim_config_name):
     path = os.getcwd() + '/sim_configs/' + sim_config_name
@@ -21,8 +25,9 @@ def get_json_path(sim_config_name):
 
 
 if __name__ == '__main__':
-    #run_test(get_json_path(fixed_muting_test_scenario))
-    run_test(get_json_path(random_muting_test_v3_scenario))
+    # run_test(get_json_path(fixed_muting_test_scenario))
+    # run_test(get_json_path(no_offset_db_fbe_scenario))
+    run_test(get_json_path(random_offset_db))
     # for floating_cot_fixed_ffp_scenario_path in floating_cot_fixed_ffp_scenarios:
     #     run_test(get_json_path(floating_cot_fixed_ffp_scenario_path))
     # for floating_ffp_fixed_cot_scenario_path in floating_ffp_fixed_cot_scenarios:

@@ -10,15 +10,16 @@
     }
   ],
   "SIMULATION_TIME": "1000000",
+  "SCENARIO_RUNS": 10,
   "OUTPUT_PARAMS": {
-    "file_name": "random_muting_fbe_floating_cot_fixed_ffp",
-    "folder_name": "floating_cot_fixed_ffp_v2",
+    "file_name": "random_muting",
+    "folder_name": "floating_cot_fixed_ffp/random_muting",
     "all_in_one": {
       "x_axis": "normalized_cot",
-      "y_axis": "normalized_air_time",
+      "y_axis": "normalized_air_time;successful_transmissions",
       "title": "Random-muting FBE",
       "x_label": "Normalized cot",
-      "y_label": "Normalized airtime"
+      "y_label": "Normalized airtime;Successful transmissions"
     }
   }
 }

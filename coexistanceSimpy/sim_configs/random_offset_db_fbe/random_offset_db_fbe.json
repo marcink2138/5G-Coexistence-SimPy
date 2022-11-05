@@ -1,38 +1,51 @@
 {
-  "FLOATING_FBE": [
+  "DETERMINISTIC_BACKOFF_FBE": [
     {
       "name": "GNB_FBE {}",
-      "offset": "0",
+      "offset": "0..20000",
       "cot": "250;750;1250;1750;2250;2750;3250;3750;4250;4750",
-      "ffp": "5000"
+      "ffp": "5000",
+      "max_retransmissions": "5",
+      "init_backoff": "2",
+      "threshold": "3"
     },
     {
       "name": "GNB_FBE {}",
-      "offset": "0",
+      "offset": "0..20000",
       "cot": "250;750;1250;1750;2250;2750;3250;3750;4250;4750",
-      "ffp": "5000"
+      "ffp": "5000",
+      "max_retransmissions": "5",
+      "init_backoff": "2",
+      "threshold": "3"
     },
     {
       "name": "GNB_FBE {}",
-      "offset": "0",
+      "offset": "0..20000",
       "cot": "250;750;1250;1750;2250;2750;3250;3750;4250;4750",
-      "ffp": "5000"
+      "ffp": "5000",
+      "max_retransmissions": "5",
+      "init_backoff": "2",
+      "threshold": "3"
     },
     {
       "name": "GNB_FBE {}",
-      "offset": "0",
+      "offset": "0..20000",
       "cot": "250;750;1250;1750;2250;2750;3250;3750;4250;4750",
-      "ffp": "5000"
+      "ffp": "5000",
+      "max_retransmissions": "5",
+      "init_backoff": "2",
+      "threshold": "3"
     }
   ],
-  "SIMULATION_TIME": "1000000",
+  "SIMULATION_TIME": "5000000",
+  "SCENARIO_RUNS": 50,
   "OUTPUT_PARAMS": {
-    "file_name": "floating_fbe",
-    "folder_name": "four_stations_no_offset/floating_fbe",
+    "file_name": "db_fbe",
+    "folder_name": "random_offset_db_fbe",
     "all_in_one": {
       "x_axis": "normalized_cot",
       "y_axis": "normalized_air_time",
-      "title": "Floating FBE",
+      "title": "Deterministic-backoff FBE",
       "x_label": "Normalized cot",
       "y_label": "Normalized airtime"
     },

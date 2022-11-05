@@ -1,20 +1,8 @@
 import logging
-from datetime import datetime
-
-
-# Default logger -> used in old coexistence
-# default_logger = logging.getLogger("default")
-# default_logger.setLevel(logging.INFO)  # chose DEBUG to display stats in debug mode :)
-# default_logger.disabled = True
-# default_logger.propagate = False
-# file_log_name = f"{datetime.today().strftime('%Y-%m-%d-%H-%M-%S')}.log"
-# logging.basicConfig(filename="",
-#                     format='%(asctime)s %(message)s',
-#                     filemode='w')
 
 
 def station_log(gnb, mes: str) -> None:
-    if hasattr(gnb, 'log_name'):
+    if hasattr(gnb, 'logger_name'):
         logger = logging.getLogger(gnb.logger_name)
     else:
         logger = logging.getLogger('default')
@@ -40,4 +28,3 @@ def setup_logger(log_name, log_path) -> None:
     file_handler.setFormatter(formatter)
     logger.setLevel(logging.INFO)
     logger.addHandler(file_handler)
-
