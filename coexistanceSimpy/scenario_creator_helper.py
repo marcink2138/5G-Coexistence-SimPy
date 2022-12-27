@@ -14,6 +14,7 @@ fixed_muting_fbe_json_list = []
 random_muting_fbe_json_list = []
 floating_fbe_json_list = []
 db_fbe_json_list = []
+CONTAINS_RANDOM_PARAMS = False
 
 
 def collect_cot_ffp_offset_zip(cot_list, ffp_list, offset_list):
@@ -35,11 +36,16 @@ def collect_cot_ffp_offset_zip(cot_list, ffp_list, offset_list):
 
 
 def check_for_random_params(variable_list):
+    contains_random_params_local = False
     for i in range(len(variable_list)):
         if ".." in variable_list[i]:
             bounds = variable_list[i].split("..")
             random_num = random.randint(int(bounds[0]), int(bounds[1]))
             variable_list[i] = str(random_num)
+            contains_random_params_local = True
+    if contains_random_params_local:
+        global CONTAINS_RANDOM_PARAMS
+        CONTAINS_RANDOM_PARAMS = True
 
 
 def get_base_fbe_rows(table, row):
@@ -159,6 +165,8 @@ def get_station_params_from_json(j, fbe_version: FBEVersion):
 
 
 def get_scenario_directly_from_json(json_path):
+    global CONTAINS_RANDOM_PARAMS
+    CONTAINS_RANDOM_PARAMS = False
     f = open(json_path)
     j = json.load(f)
     f.close()
@@ -179,7 +187,8 @@ def get_scenario_directly_from_json(json_path):
     is_separate_run = j["RUN_SEPARATELY"] if "RUN_SEPARATELY" in j else False
     scenario_runs = j["SCENARIO_RUNS"] if "SCENARIO_RUNS" in j else 1
     contains_db_fbe = len(db_fbe_json_list) > 0
-    simulation_params = SimulationParams(simulation_time, output_params, is_separate_run, scenario_runs, contains_db_fbe)
+    simulation_params = SimulationParams(simulation_time, output_params, is_separate_run, scenario_runs,
+                                         contains_db_fbe)
     return simulation_params
 
 
@@ -192,8 +201,9 @@ def build_output_params_obj(output_params_json):
     fairness = output_params_json.get("fairness")
     summary_airtime = output_params_json.get("summary_airtime")
     separate_plots = output_params_json.get("separate_plots")
-    enable_logging = output_params_json["enable_logging"] if "enable_logging" in output_params_json else True
-    return OutputParams(folder_name, file_name, all_in_one, fairness, summary_airtime, separate_plots, enable_logging)
+    enable_logging = output_params_json["enable_logging"] if "enable_logging" in output_params_json else False
+    is_random = output_params_json["is_random"] if "is_random" in output_params_json else False
+    return OutputParams(folder_name, file_name, all_in_one, fairness, summary_airtime, separate_plots, enable_logging, is_random)
 
 
 def get_standard_fbe_from_json_list(stations_list):
@@ -298,6 +308,7 @@ class OutputParams:
     summary_airtime: dict
     separate_plots: dict
     enable_logging: bool
+    is_random:bool
 
 
 @dataclass

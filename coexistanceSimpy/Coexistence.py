@@ -846,7 +846,7 @@ class FBE(ABC):
                 request = yield request_token | self.env.timeout(0)
                 self.interrupt_cca()
                 if request_token not in request:
-                    raise simpy.Interrupt("Collision in channel")
+                    self.interrupt_transmissions()
                 remained_time = self.channel.simulation_time - transmission_start
                 if remained_time < self.timers.cot:
                     station_log(self,
@@ -888,10 +888,10 @@ class FBE(ABC):
                 station.process.interrupt()
 
     def interrupt_transmissions(self):
-        # for station in self.channel.tx_list_NR_FBE:
-        #     if station != self and station.transmission_process.is_alive:
-        #         station_log(self, f"Interrupting transmission process of station: {station.name}")
-        #         station.process.interrupt()
+        for station in self.channel.tx_list_NR_FBE:
+            if station != self and station.transmission_process.is_alive:
+                station_log(self, f"Interrupting transmission process of station: {station.name}")
+                station.transmission_process.interrupt()
         raise simpy.Interrupt("Collision in channel")
 
     def sent_failed(self):
@@ -956,7 +956,7 @@ class FBE(ABC):
         self.channel = channel
 
     def __str__(self) -> str:
-        return "(FBE) "
+        return "FBE "
 
     def __repr__(self) -> str:
         return f'\n' \
@@ -984,7 +984,7 @@ class StandardFBE(FBE):
         return FBEVersion.STANDARD_FBE
 
     def __str__(self) -> str:
-        return "(Standard FBE) "
+        return "Standard FBE "
 
 
 def select_random_number(random_range, bottom_range=1):
@@ -1048,7 +1048,7 @@ class RandomMutingFBE(FBE):
         return FBEVersion.RANDOM_MUTING_FBE
 
     def __str__(self) -> str:
-        return "(Random-muting FBE) "
+        return "Random-muting FBE "
 
     def __repr__(self) -> str:
         return super().__repr__() + \
@@ -1100,7 +1100,7 @@ class FloatingFBE(FBE):
         return FBEVersion.FLOATING_FBE
 
     def __str__(self) -> str:
-        return "(Floating FBE) "
+        return "Floating FBE "
 
     def __repr__(self) -> str:
         return super().__repr__() + \
@@ -1153,7 +1153,7 @@ class FixedMutingFBE(FBE):
         return FBEVersion.FIXED_MUTING_FBE
 
     def __str__(self) -> str:
-        return "(Fixed-muting FBE) "
+        return "Fixed-muting FBE "
 
     def __repr__(self) -> str:
         return super().__repr__() + \
@@ -1172,6 +1172,7 @@ class DeterministicBackoffFBE(FBE):
         self.init_backoff_value = init_backoff_value
         self.threshold = threshold
         self.interrupt_counter = 0
+        self.is_interrupt_counter_incremented = False
         self.drop_frame = False
         self.incremented_during_monitor = False
         self.monitor_time = self.timers.ffp - self.timers.cca
@@ -1180,6 +1181,7 @@ class DeterministicBackoffFBE(FBE):
         yield self.env.process(self.process_init_offset())
         while True:
             if self.backoff_counter == 0:
+                self.is_interrupt_counter_incremented = False
                 yield self.env.process(self.ffp_with_transmission())
             else:
                 self.skip_next_cot = False
@@ -1188,6 +1190,11 @@ class DeterministicBackoffFBE(FBE):
                 station_log(self, 'Dropping frame ...')
                 self.drop_frame = False
                 self.select_backoff()
+
+    def send_transmission(self):
+        for db_station in self.channel.db_fbe_list:
+            db_station.log_actual_backoff()
+        yield from super().send_transmission()
 
     def process_init_offset(self):
         self.add_interrupt_counter_to_dict(True)
@@ -1217,8 +1224,7 @@ class DeterministicBackoffFBE(FBE):
             end = self.env.now
             diff = end - now
             self.channel.cca_list_NR_FBE.remove(self)
-            self.interrupt_counter += 1
-            self.add_interrupt_counter_to_dict()
+            self.increment_interrupt_counter()
             self.incremented_during_monitor = True
             station_log(self, f'Incrementing interrupt_counter. '
                               f'Actual value: {self.interrupt_counter}. '
@@ -1226,12 +1232,17 @@ class DeterministicBackoffFBE(FBE):
                               f'Time to finish monitor mode: {self.monitor_time - diff}')
             yield self.env.timeout(self.monitor_time - diff)
 
+    def increment_interrupt_counter(self):
+        # if not self.is_interrupt_counter_incremented:
+        self.interrupt_counter += 1
+        self.is_interrupt_counter_incremented = True
+        self.add_interrupt_counter_to_dict()
+
     def process_cca(self):
         yield from super().process_cca()
         if self.skip_next_cot:
             if not self.incremented_during_monitor:
-                self.interrupt_counter += 1
-                self.add_interrupt_counter_to_dict()
+                self.increment_interrupt_counter()
                 station_log(self, f'Interrupt counter incremented after CCA. Actual value: {self.interrupt_counter}')
                 self.incremented_during_monitor = False
         else:
@@ -1293,11 +1304,18 @@ class DeterministicBackoffFBE(FBE):
         self.channel.db_interrupt_counter["value"].append(self.interrupt_counter)
         self.channel.db_interrupt_counter["station_name"].append(self.name)
 
+    def set_channel(self, channel):
+        super().set_channel(channel)
+        self.channel.db_fbe_list.append(self)
+
+    def log_actual_backoff(self):
+        station_log(self, f'Actual backoff log {self.backoff_counter}')
+
     def get_fbe_version(self):
         return FBEVersion.DETERMINISTIC_BACKOFF_FBE
 
     def __str__(self) -> str:
-        return "(Deterministic-backoff FBE) "
+        return "Deterministic-backoff FBE "
 
     def __repr__(self) -> str:
         return super().__repr__() + \
@@ -1358,6 +1376,7 @@ class Channel:
     db_interrupt_counter: dict = field(
         default_factory=lambda: {"time": [], "value": [], "station_name": []}
     )
+    db_fbe_list: List[DeterministicBackoffFBE] = field(default_factory=list)
     failed_transmissions: int = 0  # total failed transmissions
     succeeded_transmissions: int = 0  # total succeeded transmissions
     bytes_sent: int = 0  # total bytes sent
@@ -1387,8 +1406,6 @@ def single_run_test(
 
 
 if __name__ == "__main__":
-    test = ['aa', 'bb', 'cc']
-    test2 = ['aaa', 'bbb', 'ccc']
-    test3 = (test, test2)
-    for x, y in test, test2:
-        print(x + '\t' + y)
+    print(FBEVersion["FLOATING_FBE"])
+    print(FBEVersion.FLOATING_FBE.name)
+

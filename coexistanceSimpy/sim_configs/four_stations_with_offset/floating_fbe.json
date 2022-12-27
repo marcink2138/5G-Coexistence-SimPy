@@ -1,50 +1,48 @@
 {
   "FLOATING_FBE": [
     {
-      "name": "GNB_FBE {}",
+      "name": "{}",
       "offset": "0",
       "cot": "1000;2000;3000;4000;5000;6000;7000;8000;9000",
       "ffp": "10000"
     },
     {
-      "name": "GNB_FBE {}",
+      "name": "{}",
       "offset": "2500",
       "cot": "1000;2000;3000;4000;5000;6000;7000;8000;9000",
       "ffp": "10000"
     },
     {
-      "name": "GNB_FBE {}",
+      "name": "{}",
       "offset": "5000",
       "cot": "1000;2000;3000;4000;5000;6000;7000;8000;9000",
       "ffp": "10000"
     },
     {
-      "name": "GNB_FBE {}",
+      "name": "{}",
       "offset": "7500",
       "cot": "1000;2000;3000;4000;5000;6000;7000;8000;9000",
       "ffp": "10000"
     }
   ],
   "SIMULATION_TIME": "1000000",
+  "SCENARIO_RUNS": 50,
   "OUTPUT_PARAMS": {
     "file_name": "floating_fbe",
     "folder_name": "four_stations_with_offset/floating_fbe",
     "all_in_one": {
       "x_axis": "normalized_cot",
-      "y_axis": "normalized_air_time",
-      "title": "Floating FBE",
-      "x_label": "Normalized cot",
-      "y_label": "Normalized airtime"
+      "y_axis": "normalized_air_time;successful_transmissions",
+      "title": "",
+      "x_label": "Normalized COT",
+      "y_label": "Normalized airtime;Successful transmissions",
+      "plot_file_name": "floating_fbe_all_in_one_test4;floating_fbe_succ_trans_test4"
     },
     "fairness": {
       "x_axis": "normalized_cot",
-      "title": "Fairness",
-      "x_label": "Normalized cot"
-    },
-    "summary_airtime": {
-      "x_axis": "normalized_cot",
-      "title": "Summary airtime",
-      "x_label": "Normalized cot"
+      "title": "",
+      "x_label": "Normalized COT",
+      "plot_file_name": "floating_fbe_fairness_test4"
     }
   }
 }

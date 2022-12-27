@@ -1,7 +1,7 @@
 {
   "FLOATING_FBE": [
     {
-      "name": "GNB_FBE {}",
+      "name": "",
       "offset": "0..25000",
       "cot": "250;750;1250;1750;2250;2750;3250;3750;4250;4750",
       "ffp": "5000"
@@ -9,8 +9,8 @@
   ],
   "FIXED_MUTING_FBE": [
     {
-      "name": "GNB_FBE {}",
-      "offset": "0",
+      "name": "",
+      "offset": "0..25000",
       "cot": "250;750;1250;1750;2250;2750;3250;3750;4250;4750",
       "ffp": "5000",
       "max_muted_periods": "1"
@@ -18,7 +18,7 @@
   ],
   "DETERMINISTIC_BACKOFF_FBE": [
     {
-      "name": "GNB_FBE {}",
+      "name": "",
       "offset": "0..25000",
       "cot": "250;750;1250;1750;2250;2750;3250;3750;4250;4750",
       "ffp": "5000",
@@ -29,7 +29,7 @@
   ],
   "RANDOM_MUTING_FBE": [
     {
-      "name": "GNB_FBE {}",
+      "name": "",
       "offset": "0..25000",
       "cot": "250;750;1250;1750;2250;2750;3250;3750;4250;4750",
       "ffp": "5000",
@@ -39,23 +39,25 @@
   ],
   "STANDARD_FBE": [
     {
-      "name": "GNB_FBE {}",
+      "name": "",
       "offset": "0..25000",
       "cot": "250;750;1250;1750;2250;2750;3250;3750;4250;4750",
       "ffp": "5000"
     }
   ],
   "SIMULATION_TIME": "1000000",
-  "SCENARIO_RUNS": 10,
+  "SCENARIO_RUNS": 50,
   "OUTPUT_PARAMS": {
     "file_name": "random_offset_five_stations",
     "folder_name": "random_offset",
     "all_in_one": {
       "x_axis": "normalized_cot",
-      "y_axis": "normalized_air_time",
-      "title": "FBE Stations with random offset - 10 runs",
-      "x_label": "Normalized cot",
-      "y_label": "Normalized airtime"
-    }
+      "y_axis": "normalized_air_time;successful_transmissions",
+      "title": "",
+      "x_label": "Normalized COT",
+      "y_label": "Normalized airtime;Successful transmissions",
+      "plot_file_name": "test5_norm_airtime;test5_succ_trans"
+    },
+    "is_random": true
   }
 }

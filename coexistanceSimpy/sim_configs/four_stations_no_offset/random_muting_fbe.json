@@ -1,28 +1,28 @@
 {
   "RANDOM_MUTING_FBE": [
     {
-      "name": "GNB_FBE {}",
+      "name": "{}",
       "offset": "0",
       "cot": "250;750;1250;1750;2250;2750;3250;3750;4250;4750",
       "ffp": "5000",
       "max_muted_periods": "5",
       "max_frames_in_row": "5"
     },{
-      "name": "GNB_FBE {}",
+      "name": "{}",
       "offset": "0",
       "cot": "250;750;1250;1750;2250;2750;3250;3750;4250;4750",
       "ffp": "5000",
       "max_muted_periods": "5",
       "max_frames_in_row": "5"
     },{
-      "name": "GNB_FBE {}",
+      "name": "{}",
       "offset": "0",
       "cot": "250;750;1250;1750;2250;2750;3250;3750;4250;4750",
       "ffp": "5000",
       "max_muted_periods": "5",
       "max_frames_in_row": "5"
     },{
-      "name": "GNB_FBE {}",
+      "name": "{}",
       "offset": "0",
       "cot": "250;750;1250;1750;2250;2750;3250;3750;4250;4750",
       "ffp": "5000",
@@ -36,20 +36,11 @@
     "folder_name": "four_stations_no_offset/random_muting_fbe",
     "all_in_one": {
       "x_axis": "normalized_cot",
-      "y_axis": "normalized_air_time",
-      "title": "Random-muting FBE",
-      "x_label": "Normalized cot",
-      "y_label": "Normalized airtime"
-    },
-    "fairness": {
-      "x_axis": "normalized_cot",
-      "title": "Fairness",
-      "x_label": "Normalized cot"
-    },
-    "summary_airtime": {
-      "x_axis": "normalized_cot",
-      "title": "Summary airtime",
-      "x_label": "Normalized cot"
+      "y_axis": "normalized_air_time;failed_transmissions",
+      "title": "",
+      "x_label": "Normalized COT",
+      "y_label": "Normalized airtime;Failed transmissions",
+      "plot_file_name": "test3_floating_fbe_norm_airtime;test3_random_muting_fbe_unsucc_trans"
     }
   }
 }

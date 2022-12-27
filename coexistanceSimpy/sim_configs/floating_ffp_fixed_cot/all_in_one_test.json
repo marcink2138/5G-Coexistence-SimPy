@@ -1,7 +1,7 @@
 {
   "FLOATING_FBE": [
     {
-      "name": "GNB_FBE {}",
+      "name": "",
       "offset": "0",
       "cot": "950;1900;2850;3800;4750;5700;6650;7600;8550;9500",
       "ffp": "1000;2000;3000;4000;5000;6000;7000;8000;9000;10000"
@@ -9,7 +9,7 @@
   ],
   "FIXED_MUTING_FBE": [
     {
-      "name": "GNB_FBE {}",
+      "name": "",
       "offset": "0",
       "cot": "950;1900;2850;3800;4750;5700;6650;7600;8550;9500",
       "ffp": "1000;2000;3000;4000;5000;6000;7000;8000;9000;10000",
@@ -18,7 +18,7 @@
   ],
   "DETERMINISTIC_BACKOFF_FBE": [
     {
-      "name": "GNB_FBE {}",
+      "name": "",
       "offset": "0",
       "cot": "950;1900;2850;3800;4750;5700;6650;7600;8550;9500",
       "ffp": "1000;2000;3000;4000;5000;6000;7000;8000;9000;10000",
@@ -29,7 +29,7 @@
   ],
   "RANDOM_MUTING_FBE": [
     {
-      "name": "GNB_FBE {}",
+      "name": "",
       "offset": "0",
       "cot": "950;1900;2850;3800;4750;5700;6650;7600;8550;9500",
       "ffp": "1000;2000;3000;4000;5000;6000;7000;8000;9000;10000",
@@ -39,7 +39,7 @@
   ],
   "STANDARD_FBE": [
     {
-      "name": "GNB_FBE {}",
+      "name": "",
       "offset": "0",
       "cot": "950;1900;2850;3800;4750;5700;6650;7600;8550;9500",
       "ffp": "1000;2000;3000;4000;5000;6000;7000;8000;9000;10000"
@@ -51,11 +51,13 @@
     "folder_name": "floating_ffp_fixed_cot/all_in_one",
     "all_in_one": {
       "x_axis": "normalized_ffp",
-      "y_axis": "normalized_air_time",
-      "title": "FBE Stations with floating FFP",
+      "y_axis": "normalized_air_time;successful_transmissions",
+      "title": "",
       "x_label": "Normalized FFP",
-      "y_label": "Normalized airtime"
+      "y_label": "Normalized airtime;Successful transmissions",
+      "plot_file_name": "test2_all_in_one_norm_airtime;test2_all_in_one_succ_trans"
     }
   },
-  "RUN_SEPARATELY": true
+  "RUN_SEPARATELY": true,
+  "SCENARIO_RUNS": 50
 }

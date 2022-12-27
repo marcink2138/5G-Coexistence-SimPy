@@ -1,14 +1,14 @@
 {
   "FIXED_MUTING_FBE": [
     {
-      "name": "GNB_FBE {}",
+      "name": "{}",
       "offset": "0",
       "cot": "250;750;1250;1750;2250;2750;3250;3750;4250;4750",
       "ffp": "5000",
       "max_muted_periods": "1"
     },
     {
-      "name": "GNB_FBE {}",
+      "name": "{}",
       "offset": "125;375;625;875;1125;1375;1625;1875;2125;2375",
       "cot": "250;750;1250;1750;2250;2750;3250;3750;4250;4750",
       "ffp": "5000",
@@ -16,16 +16,23 @@
     }
   ],
   "SIMULATION_TIME": "1000000",
+  "SCENARIO_RUNS": 50,
   "OUTPUT_PARAMS": {
     "folder_name": "fixed_muting_fbe_test",
     "file_name": "fixed_muting_fbe",
-    "enable_logging": true,
     "all_in_one": {
       "x_axis": "normalized_cot",
       "y_axis": "normalized_air_time;successful_transmissions",
-      "title": "Fixed-muting FBE",
-      "x_label": "Normalized cot",
-      "y_label": "Normalized airtime;Successful transmissions"
+      "title": "",
+      "x_label": "Normalized COT",
+      "y_label": "Normalized airtime;Successful transmissions",
+      "plot_file_name": "fixed_muting_fbe_norm_airtime_test6;fixed_muting_fbe_succ_trans_test6"
+    },
+    "fairness": {
+      "x_axis": "normalized_cot",
+      "title": "",
+      "x_label": "Normalized COT",
+      "plot_file_name": "fixed_muting_fbe_fairness_test6"
     }
   }
 }
